@@ -24,7 +24,7 @@ import { ImageUpload, type ImageWithMetadata } from "@/components/image-upload"
 import { categoryIcons } from "@/components/app-sidebar"
 import { ImageZoomModal } from "@/components/image-zoom-modal"
 import { getSupabaseClient } from "@/lib/supabase"
-import { useToast } from "@/components/ui/use-toast"
+import { useToast } from "@/hooks/use-toast"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -36,46 +36,6 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
-
-// Componente SafeImage para tratar erros de imagem
-const SafeImage = ({ src, alt, className, onError, ...props }) => {
-  const [imageSrc, setImageSrc] = useState(src)
-  const [hasError, setHasError] = useState(false)
-
-  const handleError = useCallback((e) => {
-    if (!hasError) {
-      console.warn('Erro ao carregar imagem:', src)
-      setHasError(true)
-      setImageSrc("/placeholder.svg")
-      
-      if (onError) {
-        onError(e)
-      }
-    }
-  }, [src, hasError, onError])
-
-  // Reset quando src muda
-  useEffect(() => {
-    setImageSrc(src)
-    setHasError(false)
-  }, [src])
-
-  return (
-    <img
-      {...props}
-      src={imageSrc || "/placeholder.svg"}
-      alt={alt}
-      className={className}
-      onError={handleError}
-      onLoad={() => {
-        // Imagem carregada com sucesso
-        if (hasError) {
-          setHasError(false)
-        }
-      }}
-    />
-  )
-}
 
 // Dados de exemplo para as categorias
 const categories = [
@@ -102,6 +62,7 @@ export default function BaseConhecimento() {
   const [isLoadingAuthors, setIsLoadingAuthors] = useState(true)
   const [isDeleting, setIsDeleting] = useState<number | null>(null)
   const [faqToDelete, setFaqToDelete] = useState<number | null>(null)
+  const [isDialogOpen, setIsDialogOpen] = useState(false)
   const { toast } = useToast()
   const [formData, setFormData] = useState({
     title: "",
@@ -115,59 +76,48 @@ export default function BaseConhecimento() {
   useEffect(() => {
     const fetchInitialData = async () => {
       setIsLoading(true)
-      const supabase = getSupabaseClient()
-
       try {
+        const supabase = getSupabaseClient()
+        console.log("Buscando FAQs...")
+
         // Fetch FAQs
         const { data, error } = await supabase.from("faqs").select("*").order("created_at", { ascending: false })
 
+        console.log("Resultado da busca FAQs:", { data, error })
+
         if (error) {
-          throw error
-        }
-
-        // Transform data with enhanced error handling for images
-        const transformedFaqs = data.map((faq) => {
-          let images = []
-          try {
-            if (faq.images) {
-              const parsedImages = JSON.parse(faq.images)
-              // Validar e filtrar imagens com URLs válidas
-              images = Array.isArray(parsedImages) 
-                ? parsedImages.filter(img => 
-                    img && 
-                    typeof img === 'object' && 
-                    img.src && 
-                    typeof img.src === 'string' &&
-                    img.src.trim() !== ''
-                  )
-                : []
-            }
-          } catch (e) {
-            console.warn('Erro ao processar imagens do FAQ:', faq.id, e)
-            images = []
-          }
-
-          return {
+          console.error("Error fetching FAQs:", error)
+          toast({
+            title: "Erro ao carregar FAQs",
+            description: "Não foi possível carregar os FAQs. Tente novamente mais tarde.",
+            variant: "destructive",
+          })
+          setFaqs([]) // Define array vazio em caso de erro
+        } else {
+          // Transform data
+          const transformedFaqs = (data || []).map((faq) => ({
             id: faq.id,
-            title: faq.title || 'Título não disponível',
-            category: faq.category || 'sem-categoria',
-            description: faq.description || 'Descrição não disponível',
-            author: faq.author || '',
-            images,
-          }
-        })
+            title: faq.title,
+            category: faq.category,
+            description: faq.description,
+            author: faq.author,
+            images: faq.images ? JSON.parse(faq.images) : [],
+          }))
 
-        setFaqs(transformedFaqs)
+          console.log("FAQs transformados:", transformedFaqs)
+          setFaqs(transformedFaqs)
+        }
       } catch (error) {
-        console.error("Error fetching FAQs:", error)
+        console.error("Erro inesperado ao buscar FAQs:", error)
+        setFaqs([])
         toast({
-          title: "Erro ao carregar FAQs",
-          description: "Não foi possível carregar os FAQs. Tente novamente mais tarde.",
+          title: "Erro inesperado",
+          description: "Ocorreu um erro inesperado ao carregar os FAQs.",
           variant: "destructive",
         })
+      } finally {
+        setIsLoading(false)
       }
-
-      setIsLoading(false)
     }
 
     const fetchAuthors = async () => {
@@ -245,7 +195,7 @@ export default function BaseConhecimento() {
       })
 
       // Fechar o diálogo
-      document.querySelector('[data-state="open"]')?.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }))
+      setIsDialogOpen(false)
 
       toast({
         title: "FAQ adicionado",
@@ -272,7 +222,6 @@ export default function BaseConhecimento() {
         throw error
       }
 
-      // Não precisamos atualizar o estado local, pois a subscription fará isso
       toast({
         title: "FAQ removido",
         description: "O FAQ foi removido com sucesso.",
@@ -288,6 +237,11 @@ export default function BaseConhecimento() {
       setIsDeleting(null)
       setFaqToDelete(null)
     }
+  }
+
+  // Navegar para detalhes do FAQ
+  const handleViewDetails = (faq) => {
+    router.push(`/base-conhecimento/${faq.id}`)
   }
 
   return (
@@ -310,7 +264,7 @@ export default function BaseConhecimento() {
             />
           </div>
 
-          <Dialog>
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
               <Button>
                 <PlusCircle className="mr-2 h-4 w-4" />
@@ -343,7 +297,7 @@ export default function BaseConhecimento() {
                       </SelectTrigger>
                       <SelectContent>
                         {categories.map((category) => {
-                          const IconComponent = categoryIcons[category.id] || BookOpen
+                          const IconComponent = categoryIcons?.[category.id] || BookOpen
                           return (
                             <SelectItem key={category.id} value={category.id}>
                               <div className="flex items-center gap-2">
@@ -409,7 +363,7 @@ export default function BaseConhecimento() {
         <TabsList className="flex flex-wrap h-auto">
           <TabsTrigger value="all">Todos</TabsTrigger>
           {categories.map((category) => {
-            const IconComponent = categoryIcons[category.id] || BookOpen
+            const IconComponent = categoryIcons?.[category.id] || BookOpen
             return (
               <TabsTrigger key={category.id} value={category.id}>
                 <IconComponent className="mr-1 h-4 w-4" /> {category.name}
@@ -430,14 +384,14 @@ export default function BaseConhecimento() {
                 id: faq.category,
                 name: faq.category,
               }
-              const IconComponent = categoryIcons[category.id] || BookOpen
+              const IconComponent = categoryIcons?.[category.id] || BookOpen
 
               return (
                 <Card key={faq.id} className="relative group">
                   <CardHeader className="pb-3">
                     <div className="flex items-center gap-2">
                       <IconComponent className="h-5 w-5 text-blue-600" />
-                      <CardTitle>{faq.title}</CardTitle>
+                      <CardTitle className="line-clamp-2">{faq.title}</CardTitle>
                     </div>
                     <CardDescription>
                       Categoria: {category?.name}
@@ -459,10 +413,7 @@ export default function BaseConhecimento() {
                     <Button
                       variant="outline"
                       className="flex-1 mr-2"
-                      onClick={() => {
-                        setSelectedFaq(faq)
-                        setShowDetails(true)
-                      }}
+                      onClick={() => handleViewDetails(faq)}
                     >
                       Ver detalhes
                     </Button>
@@ -507,97 +458,21 @@ export default function BaseConhecimento() {
               <BookOpen className="h-12 w-12 text-muted-foreground/50" />
               <h3 className="mt-4 text-lg font-semibold">Nenhum FAQ encontrado</h3>
               <p className="mt-2 text-sm text-muted-foreground">
-                Não encontramos nenhum FAQ que corresponda à sua pesquisa.
+                {faqs.length === 0 
+                  ? "Ainda não há FAQs cadastrados. Clique em 'Novo FAQ' para adicionar o primeiro."
+                  : "Não encontramos nenhum FAQ que corresponda à sua pesquisa."
+                }
               </p>
+              {faqs.length === 0 && (
+                <Button className="mt-4" onClick={() => setIsDialogOpen(true)}>
+                  <PlusCircle className="mr-2 h-4 w-4" />
+                  Adicionar primeiro FAQ
+                </Button>
+              )}
             </div>
           )}
         </div>
       </Tabs>
-
-      {/* Diálogo de detalhes do FAQ */}
-      <Dialog open={showDetails} onOpenChange={setShowDetails}>
-        <DialogContent className="sm:max-w-[700px] flex flex-col max-h-[85vh]">
-          <DialogHeader>
-            <DialogTitle>{selectedFaq?.title}</DialogTitle>
-            <DialogDescription>
-              Categoria: {categories.find((c) => c.id === selectedFaq?.category)?.name}
-              {selectedFaq?.author && <span className="ml-2">• Autor: {selectedFaq.author}</span>}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex-1 overflow-y-auto pr-1 my-4">
-            <div className="grid gap-4">
-              <div>
-                <h4 className="text-sm font-medium mb-2">Descrição</h4>
-                <p className="whitespace-pre-line">{selectedFaq?.description}</p>
-              </div>
-
-              {selectedFaq?.images && selectedFaq.images.length > 0 ? (
-                <div>
-                  <h4 className="text-sm font-medium mb-2">Imagens</h4>
-                  <div className="space-y-4">
-                    {selectedFaq.images.map((image, index) => (
-                      <Card key={index} className="overflow-hidden group">
-                        <CardContent className="p-4">
-                          <div className="grid grid-cols-1 md:grid-cols-[200px_1fr] gap-4">
-                            <div className="border rounded-md overflow-hidden h-[150px] relative">
-                              <SafeImage
-                                src={image.src}
-                                alt={image.title || `Imagem ${index + 1}`}
-                                className="w-full h-full object-cover"
-                              />
-                              <Button
-                                variant="secondary"
-                                size="icon"
-                                className="absolute top-2 right-2 h-8 w-8 rounded-full opacity-0 group-hover:opacity-100 transition-opacity bg-black/50 text-white hover:bg-black/70"
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  setZoomImage(image)
-                                }}
-                              >
-                                <ZoomIn className="h-4 w-4" />
-                                <span className="sr-only">Ampliar imagem</span>
-                              </Button>
-                            </div>
-
-                            <div className="space-y-3">
-                              {image.title && (
-                                <div>
-                                  <h5 className="text-sm font-medium">Título</h5>
-                                  <p>{image.title}</p>
-                                </div>
-                              )}
-
-                              {image.description && (
-                                <div>
-                                  <h5 className="text-sm font-medium">Descrição</h5>
-                                  <p className="text-sm text-muted-foreground">{image.description}</p>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-                </div>
-              ) : (
-                <div>
-                  <h4 className="text-sm font-medium mb-2">Imagens</h4>
-                  <p className="text-sm text-muted-foreground">Nenhuma imagem anexada a este FAQ.</p>
-                </div>
-              )}
-
-              <div>
-                <h4 className="text-sm font-medium mb-2">Autor</h4>
-                <p>{selectedFaq?.author || "Não especificado"}</p>
-              </div>
-            </div>
-          </div>
-          <DialogFooter className="pt-2 border-t">
-            <Button onClick={() => setShowDetails(false)}>Fechar</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* Modal de zoom */}
       <ImageZoomModal
