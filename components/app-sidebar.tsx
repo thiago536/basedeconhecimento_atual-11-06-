@@ -133,7 +133,7 @@ export function AppSidebar() {
       <SidebarFooter className="bg-blue-50 dark:bg-blue-950">
         <div className="flex flex-col p-4 gap-4">
           <div className="flex items-center justify-between">
-            <div className="text-xs text-muted-foreground">E-PROSYS v1.0.0</div>
+            <div className="text-xs text-muted-foreground">E-PROSYS v2.0.0</div>
             <ModeToggle />
           </div>
 
