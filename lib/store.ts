@@ -16,7 +16,7 @@ export interface FAQData {
   category: string
   description: string
   author?: string
-  images?: ImageWithMetadata[]
+  images?: any[]
 }
 
 export interface Autor {
@@ -53,7 +53,7 @@ interface AppState {
   setAcessos: (acessos: Acesso[]) => void
   addAcesso: (acesso: Omit<Acesso, "id" | "expandido" | "created_at">) => Promise<void>
   updateAcesso: (id: number, acesso: Partial<Acesso>) => Promise<void>
-  deleteAcesso: (id: number) => Promise<void>
+  deleteAcesso: (id: number) => Promise<void> // Mantido para tipagem, mas a lógica será removida do frontend por enquanto
   subscribeToAcessos: () => () => void
   
   // Pendências
@@ -164,7 +164,7 @@ export const useAppStore = create<AppState>()(
           const supabase = getSupabaseClient()
           const subscription = supabase
             .channel("faqs-changes")
-            .on("postgres_changes", { event: "*", schema: "public", table: "faqs" }, async () => {
+            .on("postgres_changes", { event: "*", schema: "public", table: "faqs" }, async (payload) => {
               try {
                 const { data, error } = await supabase
                   .from("faqs")
@@ -176,14 +176,15 @@ export const useAppStore = create<AppState>()(
                   return
                 }
                 
-                const transformedFaqs = data.map((faq) => ({
+                // Garante que 'data' é um array antes de mapear
+                const transformedFaqs = Array.isArray(data) ? data.map((faq) => ({
                   id: faq.id,
                   title: faq.title,
                   category: faq.category,
                   description: faq.description,
                   author: faq.author,
                   images: faq.images ? JSON.parse(faq.images) : [],
-                }))
+                })) : []; // Se não for array, usa array vazio
                 
                 set({ faqs: transformedFaqs })
               } catch (err) {
@@ -241,10 +242,11 @@ export const useAppStore = create<AppState>()(
             
           if (error) throw error
           
-          const transformedAutores = data.map((autor) => ({
+          // Garante que 'data' é um array antes de mapear
+          const transformedAutores = Array.isArray(data) ? data.map((autor) => ({
             id: autor.id,
             name: autor.name,
-          }))
+          })) : []; // Se não for array, usa array vazio
           
           set({ autores: transformedAutores })
         } catch (error) {
@@ -270,10 +272,11 @@ export const useAppStore = create<AppState>()(
                   return
                 }
                 
-                const transformedAutores = data.map((autor) => ({
+                // Garante que 'data' é um array antes de mapear
+                const transformedAutores = Array.isArray(data) ? data.map((autor) => ({
                   id: autor.id,
                   name: autor.name,
-                }))
+                })) : []; // Se não for array, usa array vazio
                 
                 set({ autores: transformedAutores })
               } catch (err) {
@@ -296,7 +299,7 @@ export const useAppStore = create<AppState>()(
       },
 
       // Acessos
-      acessos: [],
+      acessos: [], 
       setAcessos: (acessos) => set({ acessos }),
       
       addAcesso: async (acesso) => {
@@ -307,9 +310,9 @@ export const useAppStore = create<AppState>()(
             maquina: acesso.maquina,
             usuario: acesso.usuario,
             senha: acesso.senha,
-            adquirente: acesso.adquirente || null,
-            trabalho_andamento: (acesso as any).trabalhoAndamento || null,
-            status_maquininha: (acesso as any).statusMaquininha || null,
+            adquirente: acesso.adquirente || null, 
+            trabalho_andamento: acesso.trabalho_andamento || null, 
+            status_maquininha: acesso.status_maquininha || null, 
           })
           if (error) throw error
         } catch (error) {
@@ -321,15 +324,15 @@ export const useAppStore = create<AppState>()(
       updateAcesso: async (id, acesso) => {
         try {
           const supabase = getSupabaseClient()
-          const updateData: any = {}
+          const updateData: Partial<Acesso> = {}
           
-          if (acesso.posto) updateData.posto = acesso.posto
-          if (acesso.maquina) updateData.maquina = acesso.maquina
-          if (acesso.usuario) updateData.usuario = acesso.usuario
-          if (acesso.senha) updateData.senha = acesso.senha
-          if (acesso.adquirente) updateData.adquirente = acesso.adquirente
-          if ((acesso as any).trabalhoAndamento) updateData.trabalho_andamento = (acesso as any).trabalhoAndamento
-          if ((acesso as any).statusMaquininha) updateData.status_maquininha = (acesso as any).statusMaquininha
+          if (acesso.posto !== undefined) updateData.posto = acesso.posto
+          if (acesso.maquina !== undefined) updateData.maquina = acesso.maquina
+          if (acesso.usuario !== undefined) updateData.usuario = acesso.usuario
+          if (acesso.senha !== undefined) updateData.senha = acesso.senha
+          if (acesso.adquirente !== undefined) updateData.adquirente = acesso.adquirente
+          if (acesso.trabalho_andamento !== undefined) updateData.trabalho_andamento = acesso.trabalho_andamento
+          if (acesso.status_maquininha !== undefined) updateData.status_maquininha = acesso.status_maquininha
           
           const { error } = await supabase.from("acessos").update(updateData).eq("id", id)
           if (error) throw error
@@ -339,6 +342,8 @@ export const useAppStore = create<AppState>()(
         }
       },
       
+      // A função deleteAcesso permanecerá aqui no store para tipagem,
+      // mas a chamada dela e o UI relacionado serão removidos do frontend temporariamente.
       deleteAcesso: async (id) => {
         try {
           const supabase = getSupabaseClient()
@@ -355,7 +360,7 @@ export const useAppStore = create<AppState>()(
           const supabase = getSupabaseClient()
           const subscription = supabase
             .channel("acessos-changes")
-            .on("postgres_changes", { event: "*", schema: "public", table: "acessos" }, async () => {
+            .on("postgres_changes", { event: "*", schema: "public", table: "acessos" }, async (payload) => {
               try {
                 const { data, error } = await supabase
                   .from("acessos")
@@ -363,21 +368,22 @@ export const useAppStore = create<AppState>()(
                   .order("created_at", { ascending: false })
                   
                 if (error) {
-                  console.error("Error fetching acessos:", error)
+                  console.error("Error fetching acessos (subscription):", error)
                   return
                 }
                 
-                const transformedAcessos = data.map((acesso) => ({
+                // Garante que 'data' é um array antes de mapear
+                const transformedAcessos = Array.isArray(data) ? data.map((acesso) => ({
                   id: acesso.id,
                   posto: acesso.posto,
                   maquina: acesso.maquina,
                   usuario: acesso.usuario,
                   senha: acesso.senha,
                   adquirente: acesso.adquirente || "",
-                  trabalhoAndamento: acesso.trabalho_andamento || "",
-                  statusMaquininha: acesso.status_maquininha || "",
-                  expandido: false,
-                }) as Acesso)
+                  trabalho_andamento: acesso.trabalho_andamento || "",
+                  status_maquininha: acesso.status_maquininha || "",
+                  expandido: false, 
+                })) : []; // Se não for array, usa array vazio
                 
                 set({ acessos: transformedAcessos })
               } catch (err) {

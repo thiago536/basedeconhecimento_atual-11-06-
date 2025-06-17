@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { PlusCircle, Search, ChevronDown, ChevronRight, CreditCard, Settings, Trash2, AlertCircle, Building2 } from "lucide-react"
+import { PlusCircle, Search, ChevronDown, ChevronRight, CreditCard, Settings, AlertCircle, Building2 } from "lucide-react" // Removido Trash2
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -20,6 +20,8 @@ import { Badge } from "@/components/ui/badge"
 import { useAppStore } from "@/lib/store"
 import { getSupabaseClient } from "@/lib/supabase"
 import { useToast } from "@/components/ui/use-toast"
+// Removidos todos os componentes do AlertDialog
+/*
 import {
   AlertDialog,
   AlertDialogAction,
@@ -29,32 +31,32 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
+*/
+import type { Acesso } from "@/lib/supabase" 
 
 export default function Acessos() {
-  const { acessos, setAcessos, addAcesso, updateAcesso, subscribeToAcessos } = useAppStore()
+  const { acessos = [], setAcessos, addAcesso, updateAcesso, subscribeToAcessos } = useAppStore()
   const [searchTerm, setSearchTerm] = useState("")
   const [isLoading, setIsLoading] = useState(true)
-  const [isDeleting, setIsDeleting] = useState<number | null>(null)
-  const [acessoToDelete, setAcessoToDelete] = useState<number | null>(null)
+  // Removido isDeleting e acessoParaRemover
+  // const [isDeleting, setIsDeleting] = useState<number | null>(null)
+  // const [acessoParaRemover, setAcessoParaRemover] = useState<Acesso | null>(null); 
   const { toast } = useToast()
 
-  // Estados para os diálogos
   const [showNovoPostoDialog, setShowNovoPostoDialog] = useState(false)
   const [showCadastrarAcessoDialog, setShowCadastrarAcessoDialog] = useState(false)
 
-  const [novoAcesso, setNovoAcesso] = useState({
+  const [novoAcesso, setNovoAcesso] = useState<Omit<Acesso, "id" | "expandido" | "created_at">>({
     posto: "",
     maquina: "",
     usuario: "",
     senha: "",
     adquirente: "",
-    trabalhoAndamento: "",
-    statusMaquininha: "",
+    trabalho_andamento: "", 
+    status_maquininha: "", 
   })
 
-  // Estado para novo posto
   const [novoPosto, setNovoPosto] = useState({
     nome: "",
     endereco: "",
@@ -63,68 +65,68 @@ export default function Acessos() {
     observacoes: "",
   })
 
-  const [editandoAcesso, setEditandoAcesso] = useState(null)
+  const [editandoAcesso, setEditandoAcesso] = useState<Acesso | null>(null)
 
-  // Fetch initial data and subscribe to real-time updates
   useEffect(() => {
+    console.log("Componente Acessos montado ou re-renderizado.");
+    // Comentado/Removido: setAcessoParaRemover(null);
+    // console.log("acessoParaRemover resetado para null no useEffect de montagem.");
+
     const fetchInitialData = async () => {
       setIsLoading(true)
       const supabase = getSupabaseClient()
 
       try {
-        // Fetch acessos
         const { data, error } = await supabase
           .from("acessos")
           .select("*")
           .order("created_at", { ascending: false })
 
         if (error) {
-          console.error("Error fetching acessos:", error)
+          console.error("Erro ao buscar acessos:", error)
           toast({
             title: "Erro ao carregar acessos",
-            description: `Erro: ${error.message}`,
+            description: `Detalhes: ${error.message}`,
             variant: "destructive",
           })
         } else {
-          // Transform data to match our app's format
-          const transformedAcessos = data.map((acesso) => ({
+          // Garante que 'data' é um array antes de mapear
+          const transformedAcessos: Acesso[] = Array.isArray(data) ? data.map((acesso) => ({
             id: acesso.id,
             posto: acesso.posto,
             maquina: acesso.maquina,
             usuario: acesso.usuario,
             senha: acesso.senha,
             adquirente: acesso.adquirente || "",
-            trabalhoAndamento: acesso.trabalho_andamento || "",
-            statusMaquininha: acesso.status_maquininha || "",
-            expandido: false,
-          }))
-
+            trabalho_andamento: acesso.trabalho_andamento || "",
+            status_maquininha: acesso.status_maquininha || "",
+            expandido: false, 
+          })) : []; // Se não for array, usa array vazio
           setAcessos(transformedAcessos)
         }
       } catch (error) {
-        console.error("Unexpected error:", error)
+        console.error("Erro inesperado ao buscar dados:", error)
         toast({
           title: "Erro inesperado",
-          description: "Ocorreu um erro inesperado ao carregar os dados.",
+          description: "Ocorreu um erro inesperado ao carregar os dados. Verifique a conexão.",
           variant: "destructive",
         })
+      } finally {
+        setIsLoading(false)
+        console.log("fetchInitialData concluído. isLoading = false.");
       }
-
-      setIsLoading(false)
     }
 
     fetchInitialData()
 
-    // Subscribe to real-time updates
     const unsubscribe = subscribeToAcessos()
 
-    // Cleanup
     return () => {
-      unsubscribe()
-    }
-  }, [setAcessos, subscribeToAcessos, toast])
+      unsubscribe();
+      console.log("Componente Acessos desmontado. Limpeza realizada.");
+    };
+  }, [setAcessos, subscribeToAcessos, toast]); 
 
-  // Filtrar acessos com base na pesquisa
   const filteredAcessos = acessos.filter(
     (acesso) =>
       acesso.posto.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -132,63 +134,69 @@ export default function Acessos() {
       acesso.usuario.toLowerCase().includes(searchTerm.toLowerCase()),
   )
 
-  // Alternar a expansão de um acesso
-  const toggleExpansao = (id) => {
+  const toggleExpansao = (id: number) => {
     setAcessos(acessos.map((acesso) => (acesso.id === id ? { ...acesso, expandido: !acesso.expandido } : acesso)))
   }
 
-  // Remover acesso com melhor tratamento de erro
-  const removerAcesso = async (id) => {
-    setIsDeleting(id)
+  // Função removerAcesso (REMOVIDA TEMPORARIAMENTE)
+  /*
+  const removerAcesso = async (id: number) => {
+    console.log(`Iniciando remoção do acesso com ID: ${id}. Tipo do ID: ${typeof id}`);
+    if (typeof id !== 'number' || isNaN(id)) {
+      console.error("Erro: ID de acesso inválido para remoção. ID recebido:", id);
+      toast({
+        title: "Erro de remoção",
+        description: "Não foi possível remover o acesso. ID inválido.",
+        variant: "destructive",
+      });
+      setIsDeleting(null);
+      setAcessoParaRemover(null);
+      return;
+    }
+
+    setIsDeleting(id); 
     try {
-      const supabase = getSupabaseClient()
+      const supabase = getSupabaseClient();
       
-      // Primeira tentativa - delete simples
       const { error } = await supabase
         .from("acessos")
         .delete()
-        .eq("id", id)
+        .eq("id", id);
 
       if (error) {
-        console.error("Delete error:", error)
-        
-        // Se falhar, tentar atualizar localmente
-        setAcessos(prevAcessos => prevAcessos.filter(acesso => acesso.id !== id))
-        
+        console.error("Erro ao tentar remover acesso do Supabase:", error);
+        setAcessos(prevAcessos => Array.isArray(prevAcessos) ? prevAcessos.filter(acesso => acesso.id !== id) : []);
         toast({
           title: "Aviso",
-          description: "O acesso foi removido localmente. Pode haver um problema de sincronização.",
+          description: "O acesso foi removido localmente. Pode haver um problema de sincronização com o banco de dados.",
           variant: "destructive",
-        })
+        });
       } else {
         toast({
           title: "Acesso removido",
           description: "O acesso foi removido com sucesso.",
-        })
+        });
       }
-    } catch (error) {
-      console.error("Error removing acesso:", error)
-      
-      // Fallback: remover localmente
-      setAcessos(prevAcessos => prevAcessos.filter(acesso => acesso.id !== id))
-      
+    } catch (error: any) {
+      console.error("Erro inesperado ao remover acesso:", error);
+      setAcessos(prevAcessos => Array.isArray(prevAcessos) ? prevAcessos.filter(acesso => acesso.id !== id) : []);
       toast({
-        title: "Removido localmente",
-        description: "O acesso foi removido da interface. Verifique a configuração do banco.",
+        title: "Erro ao remover",
+        description: `Não foi possível remover o acesso. Detalhes: ${error.message}`,
         variant: "destructive",
-      })
+      });
     } finally {
-      setIsDeleting(null)
-      setAcessoToDelete(null)
+      setIsDeleting(null); 
+      setAcessoParaRemover(null); 
+      console.log(`Remoção finalizada para ID: ${id}. acessoParaRemover resetado para null.`);
     }
-  }
+  };
+  */
 
-  // Função para adicionar novo posto
   const handleAdicionarPosto = async () => {
     try {
       const supabase = getSupabaseClient()
       
-      // Inserir o posto na tabela postos
       const { data: postoData, error: postoError } = await supabase
         .from("postos")
         .insert([
@@ -207,7 +215,6 @@ export default function Acessos() {
         throw postoError
       }
 
-      // Resetar formulário
       setNovoPosto({
         nome: "",
         endereco: "",
@@ -215,58 +222,58 @@ export default function Acessos() {
         telefone: "",
         observacoes: "",
       })
-
       setShowNovoPostoDialog(false)
 
       toast({
         title: "Posto adicionado",
         description: "O posto foi adicionado com sucesso.",
       })
-    } catch (error) {
-      console.error("Error adding posto:", error)
+    } catch (error: any) {
+      console.error("Erro ao adicionar posto:", error)
       toast({
         title: "Erro ao adicionar posto",
-        description: `Erro: ${error.message || "Não foi possível adicionar o posto"}`,
+        description: `Não foi possível adicionar o posto. Detalhes: ${error.message || "Erro desconhecido"}`,
         variant: "destructive",
       })
     }
   }
 
   const handleSubmit = async () => {
+    console.log("Tentando salvar novo acesso:", novoAcesso);
     try {
-      // Adicionar novo acesso
       await addAcesso({
         posto: novoAcesso.posto || "Novo Posto",
         maquina: novoAcesso.maquina || "Nova Máquina",
         usuario: novoAcesso.usuario || "novo_usuario",
         senha: novoAcesso.senha || "senha123",
         adquirente: novoAcesso.adquirente || "Novo Adquirente",
-        trabalhoAndamento: novoAcesso.trabalhoAndamento || "Nenhum",
-        statusMaquininha: novoAcesso.statusMaquininha || "Não configurada",
+        trabalho_andamento: novoAcesso.trabalho_andamento || "Nenhum", 
+        status_maquininha: novoAcesso.status_maquininha || "Não configurada", 
       })
+      console.log("Acesso adicionado com sucesso ao Supabase.");
 
-      // Resetar formulário
       setNovoAcesso({
         posto: "",
         maquina: "",
         usuario: "",
         senha: "",
         adquirente: "",
-        trabalhoAndamento: "",
-        statusMaquininha: "",
-      })
-
-      setShowCadastrarAcessoDialog(false)
+        trabalho_andamento: "",
+        status_maquininha: "",
+      });
+      setShowCadastrarAcessoDialog(false); 
+      // Comentado/Removido: setAcessoParaRemover(null); 
+      // console.log("acessoParaRemover resetado para null após adição bem-sucedida.");
 
       toast({
         title: "Acesso adicionado",
         description: "O acesso foi adicionado com sucesso.",
       })
-    } catch (error) {
-      console.error("Error adding acesso:", error)
+    } catch (error: any) {
+      console.error("Erro ao adicionar acesso:", error);
       toast({
         title: "Erro ao adicionar acesso",
-        description: `Erro: ${error.message || "Não foi possível adicionar o acesso"}`,
+        description: `Não foi possível adicionar o acesso. Detalhes: ${error.message || "Erro desconhecido"}`,
         variant: "destructive",
       })
     }
@@ -274,29 +281,31 @@ export default function Acessos() {
 
   const handleUpdateAcesso = async () => {
     try {
-      if (!editandoAcesso) return
+      if (!editandoAcesso) return 
 
-      await updateAcesso(editandoAcesso.id, {
+      const updatedData: Partial<Acesso> = {
         posto: editandoAcesso.posto,
         maquina: editandoAcesso.maquina,
         usuario: editandoAcesso.usuario,
         senha: editandoAcesso.senha,
         adquirente: editandoAcesso.adquirente,
-        trabalhoAndamento: editandoAcesso.trabalhoAndamento,
-        statusMaquininha: editandoAcesso.statusMaquininha,
-      })
+        trabalho_andamento: editandoAcesso.trabalho_andamento, 
+        status_maquininha: editandoAcesso.status_maquininha, 
+      }
 
-      setEditandoAcesso(null)
+      await updateAcesso(editandoAcesso.id, updatedData)
+
+      setEditandoAcesso(null) 
 
       toast({
         title: "Acesso atualizado",
         description: "O acesso foi atualizado com sucesso.",
       })
-    } catch (error) {
-      console.error("Error updating acesso:", error)
+    } catch (error: any) {
+      console.error("Erro ao atualizar acesso:", error)
       toast({
         title: "Erro ao atualizar acesso",
-        description: `Erro: ${error.message || "Não foi possível atualizar o acesso"}`,
+        description: `Não foi possível atualizar o acesso. Detalhes: ${error.message || "Erro desconhecido"}`,
         variant: "destructive",
       })
     }
@@ -393,10 +402,13 @@ export default function Acessos() {
             </DialogContent>
           </Dialog>
 
-          {/* Botão Cadastrar Acesso */}
+          {/* Botão Cadastrar Acesso - Este diálogo abre o formulário para adicionar um novo acesso */}
           <Dialog open={showCadastrarAcessoDialog} onOpenChange={setShowCadastrarAcessoDialog}>
             <DialogTrigger asChild>
-              <Button>
+              <Button onClick={() => {
+                console.log("Botão 'Cadastrar Acesso' clicado. Abrindo diálogo...");
+                setShowCadastrarAcessoDialog(true);
+              }}>
                 <PlusCircle className="mr-2 h-4 w-4" />
                 Cadastrar Acesso
               </Button>
@@ -449,7 +461,7 @@ export default function Acessos() {
                   <Input
                     id="adquirente"
                     placeholder="Digite o adquirente do posto"
-                    value={novoAcesso.adquirente}
+                    value={novoAcesso.adquirente || ""}
                     onChange={(e) => setNovoAcesso({ ...novoAcesso, adquirente: e.target.value })}
                   />
                 </div>
@@ -458,8 +470,8 @@ export default function Acessos() {
                   <Input
                     id="trabalho"
                     placeholder="Digite o trabalho em andamento"
-                    value={novoAcesso.trabalhoAndamento}
-                    onChange={(e) => setNovoAcesso({ ...novoAcesso, trabalhoAndamento: e.target.value })}
+                    value={novoAcesso.trabalho_andamento || ""}
+                    onChange={(e) => setNovoAcesso({ ...novoAcesso, trabalho_andamento: e.target.value })}
                   />
                 </div>
                 <div className="grid gap-2">
@@ -467,8 +479,8 @@ export default function Acessos() {
                   <Input
                     id="statusMaquininha"
                     placeholder="Digite o status da maquininha"
-                    value={novoAcesso.statusMaquininha}
-                    onChange={(e) => setNovoAcesso({ ...novoAcesso, statusMaquininha: e.target.value })}
+                    value={novoAcesso.status_maquininha || ""}
+                    onChange={(e) => setNovoAcesso({ ...novoAcesso, status_maquininha: e.target.value })}
                   />
                 </div>
               </div>
@@ -510,9 +522,9 @@ export default function Acessos() {
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
-              <TableBody>
-                {filteredAcessos.map((acesso) => (
-                  <>
+              <TableBody>{
+                filteredAcessos.map((acesso) => (
+                  <React.Fragment key={`row-frag-${acesso.id}`}>
                     <TableRow
                       key={`row-${acesso.id}`}
                       className="cursor-pointer"
@@ -537,53 +549,32 @@ export default function Acessos() {
                             variant="ghost"
                             size="icon"
                             onClick={(e) => {
-                              e.stopPropagation()
-                              setEditandoAcesso({ ...acesso })
+                              e.stopPropagation(); // Impede a propagação do clique para a linha da tabela
+                              setEditandoAcesso({ ...acesso });
                             }}
                           >
                             <Settings className="h-4 w-4" />
                           </Button>
 
-                          <AlertDialog
-                            open={acessoToDelete === acesso.id}
-                            onOpenChange={(open) => !open && setAcessoToDelete(null)}
+                          {/* O botão de lixeira e o AlertDialog de remoção foram removidos temporariamente. */}
+                          {/* Eles serão adicionados novamente do zero em uma próxima etapa para garantir a estabilidade. */}
+                          {/* <Button
+                            variant="ghost"
+                            size="icon"
+                            className="text-red-500 hover:text-red-700 hover:bg-red-100"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              console.log(`Botão de remover clicado para acesso ID: ${acesso.id}. Definindo acessoParaRemover.`);
+                              setAcessoParaRemover(acesso);
+                            }}
+                            disabled={isDeleting === acesso.id}
                           >
-                            <AlertDialogTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="text-red-500 hover:text-red-700 hover:bg-red-100"
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  setAcessoToDelete(acesso.id)
-                                }}
-                                disabled={isDeleting === acesso.id}
-                              >
-                                {isDeleting === acesso.id ? (
-                                  <div className="w-4 h-4 border-2 border-t-red-600 border-r-transparent border-b-transparent border-l-transparent rounded-full animate-spin"></div>
-                                ) : (
-                                  <Trash2 className="h-4 w-4" />
-                                )}
-                              </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>Remover acesso</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  Tem certeza que deseja remover este acesso? Esta ação não pode ser desfeita.
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                <AlertDialogAction
-                                  className="bg-red-600 hover:bg-red-700"
-                                  onClick={() => removerAcesso(acesso.id)}
-                                >
-                                  Remover
-                                </AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
+                            {isDeleting === acesso.id ? (
+                              <div className="w-4 h-4 border-2 border-t-red-600 border-r-transparent border-b-transparent border-l-transparent rounded-full animate-spin"></div>
+                            ) : (
+                              <Trash2 className="h-4 w-4" />
+                            )}
+                          </Button> */}
                         </div>
                       </TableCell>
                     </TableRow>
@@ -599,7 +590,7 @@ export default function Acessos() {
                               </div>
                               <div>
                                 <h4 className="text-sm font-medium mb-1">Trabalho em Andamento</h4>
-                                <p className="text-sm">{acesso.trabalhoAndamento}</p>
+                                <p className="text-sm">{acesso.trabalho_andamento}</p>
                               </div>
                               <div>
                                 <h4 className="text-sm font-medium mb-1">Status da Maquininha</h4>
@@ -607,14 +598,14 @@ export default function Acessos() {
                                   <CreditCard className="h-4 w-4 text-blue-600" />
                                   <Badge
                                     variant={
-                                      acesso.statusMaquininha === "Configurada"
+                                      acesso.status_maquininha === "Configurada"
                                         ? "success"
-                                        : acesso.statusMaquininha === "Pendente"
+                                        : acesso.status_maquininha === "Pendente"
                                           ? "warning"
                                           : "destructive"
                                     }
                                   >
-                                    {acesso.statusMaquininha}
+                                    {acesso.status_maquininha}
                                   </Badge>
                                 </div>
                               </div>
@@ -623,7 +614,7 @@ export default function Acessos() {
                         </TableCell>
                       </TableRow>
                     )}
-                  </>
+                  </React.Fragment>
                 ))}
 
                 {filteredAcessos.length === 0 && (
@@ -647,8 +638,50 @@ export default function Acessos() {
         </CardContent>
       </Card>
 
-      {/* Diálogo de edição */}
-      <Dialog open={!!editandoAcesso} onOpenChange={(open) => !open && setEditandoAcesso(null)}>
+      {/* O AlertDialog de confirmação de exclusão foi removido temporariamente. */}
+      {/* Será adicionado novamente do zero em uma próxima etapa para garantir a estabilidade. */}
+      {/*
+      <AlertDialog 
+        open={!!acessoParaRemover} 
+        onOpenChange={(open) => {
+          if (!open) {
+            setAcessoParaRemover(null);
+            console.log("AlertDialog fechado via onOpenChange. acessoParaRemover resetado para null.");
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remover acesso</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja remover o acesso para o posto "
+              <span className="font-semibold">{acessoParaRemover?.posto}</span>"
+              (Máquina: <span className="font-semibold">{acessoParaRemover?.maquina}</span>)?
+              Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => {
+              setAcessoParaRemover(null); 
+              console.log("Remoção cancelada. acessoParaRemover resetado para null.");
+            }}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700"
+              onClick={() => {
+                if (acessoParaRemover) {
+                  removerAcesso(acessoParaRemover.id); 
+                }
+              }}
+            >
+              Remover
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      */}
+
+      {/* Diálogo de edição de acesso */}
+      <Dialog open={!!editandoAcesso} onOpenChange={(open) => !open && setEditandoAceso(null)}>
         <DialogContent className="sm:max-w-[525px]">
           <DialogHeader>
             <DialogTitle>Editar Acesso</DialogTitle>
@@ -660,7 +693,7 @@ export default function Acessos() {
               <Input
                 id="edit-posto"
                 value={editandoAcesso?.posto || ""}
-                onChange={(e) => setEditandoAcesso({ ...editandoAcesso, posto: e.target.value })}
+                onChange={(e) => setEditandoAcesso({ ...editandoAcesso!, posto: e.target.value })}
               />
             </div>
             <div className="grid gap-2">
@@ -668,7 +701,7 @@ export default function Acessos() {
               <Input
                 id="edit-maquina"
                 value={editandoAcesso?.maquina || ""}
-                onChange={(e) => setEditandoAcesso({ ...editandoAcesso, maquina: e.target.value })}
+                onChange={(e) => setEditandoAcesso({ ...editandoAcesso!, maquina: e.target.value })}
               />
             </div>
             <div className="grid gap-2">
@@ -676,7 +709,7 @@ export default function Acessos() {
               <Input
                 id="edit-usuario"
                 value={editandoAcesso?.usuario || ""}
-                onChange={(e) => setEditandoAcesso({ ...editandoAcesso, usuario: e.target.value })}
+                onChange={(e) => setEditandoAcesso({ ...editandoAcesso!, usuario: e.target.value })}
               />
             </div>
             <div className="grid gap-2">
@@ -685,7 +718,7 @@ export default function Acessos() {
                 id="edit-senha"
                 type="text"
                 value={editandoAcesso?.senha || ""}
-                onChange={(e) => setEditandoAcesso({ ...editandoAcesso, senha: e.target.value })}
+                onChange={(e) => setEditandoAcesso({ ...editandoAcesso!, senha: e.target.value })}
               />
             </div>
             <div className="grid gap-2">
@@ -693,23 +726,23 @@ export default function Acessos() {
               <Input
                 id="edit-adquirente"
                 value={editandoAcesso?.adquirente || ""}
-                onChange={(e) => setEditandoAcesso({ ...editandoAcesso, adquirente: e.target.value })}
+                onChange={(e) => setEditandoAcesso({ ...editandoAcesso!, adquirente: e.target.value })}
               />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="edit-trabalho">Trabalho em Andamento</Label>
               <Input
                 id="edit-trabalho"
-                value={editandoAcesso?.trabalhoAndamento || ""}
-                onChange={(e) => setEditandoAcesso({ ...editandoAcesso, trabalhoAndamento: e.target.value })}
+                value={editandoAcesso?.trabalho_andamento || ""}
+                onChange={(e) => setEditandoAcesso({ ...editandoAcesso!, trabalho_andamento: e.target.value })}
               />
             </div>
             <div className="grid gap-2">
               <Label htmlFor="edit-statusMaquininha">Status da Maquininha</Label>
               <Input
                 id="edit-statusMaquininha"
-                value={editandoAcesso?.statusMaquininha || ""}
-                onChange={(e) => setEditandoAcesso({ ...editandoAcesso, statusMaquininha: e.target.value })}
+                value={editandoAcesso?.status_maquininha || ""}
+                onChange={(e) => setEditandoAcesso({ ...editandoAcesso!, status_maquininha: e.target.value })}
               />
             </div>
           </div>

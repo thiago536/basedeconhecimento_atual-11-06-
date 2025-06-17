@@ -51,18 +51,19 @@ const categories = [
 
 export default function BaseConhecimento() {
   const router = useRouter()
-  const { faqs, setFaqs, addFaq, subscribeToFaqs, autores, setAutores, fetchAutores, subscribeToAutores } =
+  // Garante que 'faqs' é um array vazio por padrão para evitar erros de .filter
+  const { faqs = [], setFaqs, addFaq, subscribeToFaqs, autores = [], setAutores, fetchAutores, subscribeToAutores } =
     useAppStore()
   const [searchTerm, setSearchTerm] = useState("")
   const [activeCategory, setActiveCategory] = useState("all")
-  const [selectedFaq, setSelectedFaq] = useState(null)
-  const [showDetails, setShowDetails] = useState(false)
+  const [selectedFaq, setSelectedFaq] = useState(null) // Este estado parece não estar sendo usado atualmente
+  const [showDetails, setShowDetails] = useState(false) // Este estado parece não estar sendo usado atualmente
   const [zoomImage, setZoomImage] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isLoadingAuthors, setIsLoadingAuthors] = useState(true)
   const [isDeleting, setIsDeleting] = useState<number | null>(null)
   const [faqToDelete, setFaqToDelete] = useState<number | null>(null)
-  const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [isDialogOpen, setIsDialogOpen] = useState(false) // Estado para controlar a abertura do Diálogo de Adicionar FAQ
   const { toast } = useToast()
   const [formData, setFormData] = useState({
     title: "",
@@ -78,41 +79,39 @@ export default function BaseConhecimento() {
       setIsLoading(true)
       try {
         const supabase = getSupabaseClient()
-        console.log("Buscando FAQs...")
+        console.log("BaseConhecimento: Buscando FAQs iniciais...")
 
         // Fetch FAQs
         const { data, error } = await supabase.from("faqs").select("*").order("created_at", { ascending: false })
 
-        console.log("Resultado da busca FAQs:", { data, error })
-
         if (error) {
-          console.error("Error fetching FAQs:", error)
+          console.error("BaseConhecimento: Erro ao buscar FAQs:", error)
           toast({
             title: "Erro ao carregar FAQs",
-            description: "Não foi possível carregar os FAQs. Tente novamente mais tarde.",
+            description: `Não foi possível carregar os FAQs. Detalhes: ${error.message}.`,
             variant: "destructive",
           })
           setFaqs([]) // Define array vazio em caso de erro
         } else {
-          // Transform data
-          const transformedFaqs = (data || []).map((faq) => ({
+          // Garante que 'data' é um array antes de mapear
+          const transformedFaqs = Array.isArray(data) ? data.map((faq) => ({
             id: faq.id,
             title: faq.title,
             category: faq.category,
             description: faq.description,
             author: faq.author,
             images: faq.images ? JSON.parse(faq.images) : [],
-          }))
+          })) : []; // Se não for array, usa array vazio
 
-          console.log("FAQs transformados:", transformedFaqs)
+          console.log("BaseConhecimento: FAQs transformados:", transformedFaqs)
           setFaqs(transformedFaqs)
         }
       } catch (error) {
-        console.error("Erro inesperado ao buscar FAQs:", error)
+        console.error("BaseConhecimento: Erro inesperado ao buscar FAQs:", error)
         setFaqs([])
         toast({
           title: "Erro inesperado",
-          description: "Ocorreu um erro inesperado ao carregar os FAQs.",
+          description: `Ocorreu um erro inesperado ao carregar os FAQs. Detalhes: ${error instanceof Error ? error.message : String(error)}.`,
           variant: "destructive",
         })
       } finally {
@@ -125,10 +124,10 @@ export default function BaseConhecimento() {
       try {
         await fetchAutores()
       } catch (error) {
-        console.error("Error fetching authors:", error)
+        console.error("BaseConhecimento: Error fetching authors:", error)
         toast({
           title: "Erro ao carregar autores",
-          description: "Não foi possível carregar a lista de autores. Tente novamente mais tarde.",
+          description: `Não foi possível carregar a lista de autores. Detalhes: ${error instanceof Error ? error.message : String(error)}.`,
           variant: "destructive",
         })
       }
@@ -150,6 +149,7 @@ export default function BaseConhecimento() {
   }, [setFaqs, subscribeToFaqs, toast, fetchAutores, subscribeToAutores])
 
   // Filtrar FAQs com base na pesquisa e categoria selecionada
+  // Garante que 'faqs' é um array antes de chamar .filter()
   const filteredFaqs = faqs.filter((faq) => {
     const matchesSearch =
       faq.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -159,14 +159,13 @@ export default function BaseConhecimento() {
     return matchesSearch && matchesCategory
   })
 
-  const handleInputChange = (field, value) => {
-    setFormData({
-      ...formData,
+  const handleInputChange = (field: string, value: any) => {
+    setFormData((prev) => ({
+      ...prev,
       [field]: value,
-    })
+    }))
   }
 
-  // Use useCallback to memoize the function
   const handleImagesSelected = useCallback((images: ImageWithMetadata[]) => {
     setFormData((prev) => ({
       ...prev,
@@ -175,15 +174,26 @@ export default function BaseConhecimento() {
   }, [])
 
   const handleSubmit = async () => {
+    console.log("BaseConhecimento: Dados do formulário sendo enviados:", formData);
+    if (!formData.title || !formData.category) {
+      toast({
+        title: "Campos obrigatórios",
+        description: "Título e Categoria são obrigatórios para adicionar um FAQ.",
+        variant: "destructive",
+      });
+      console.error("BaseConhecimento: Tentativa de envio com campos obrigatórios vazios.");
+      return;
+    }
+
     try {
-      // Adicionar o novo FAQ
       await addFaq({
-        title: formData.title || "Novo FAQ",
-        category: formData.category,
-        description: formData.description || "Descrição do novo FAQ",
-        author: formData.author,
+        title: formData.title, // Já validado como não vazio
+        category: formData.category, // Já validado como não vazio
+        description: formData.description || "Descrição padrão", // Garante um valor padrão
+        author: formData.author || null, // Garante null se vazio
         images: formData.images,
       })
+      console.log("BaseConhecimento: FAQ adicionado com sucesso ao Supabase.");
 
       // Resetar o formulário
       setFormData({
@@ -196,23 +206,24 @@ export default function BaseConhecimento() {
 
       // Fechar o diálogo
       setIsDialogOpen(false)
+      console.log("BaseConhecimento: Diálogo de FAQ fechado após sucesso.");
 
       toast({
         title: "FAQ adicionado",
         description: "O FAQ foi adicionado com sucesso.",
       })
     } catch (error) {
-      console.error("Error adding FAQ:", error)
+      console.error("BaseConhecimento: Erro ao adicionar FAQ:", error)
       toast({
         title: "Erro ao adicionar FAQ",
-        description: "Não foi possível adicionar o FAQ. Tente novamente.",
+        description: `Não foi possível adicionar o FAQ. Detalhes: ${error instanceof Error ? error.message : String(error)}. Tente novamente.`,
         variant: "destructive",
       })
     }
   }
 
   // Remover FAQ
-  const removerFaq = async (id) => {
+  const removerFaq = async (id: number) => { 
     setIsDeleting(id)
     try {
       const supabase = getSupabaseClient()
@@ -227,10 +238,10 @@ export default function BaseConhecimento() {
         description: "O FAQ foi removido com sucesso.",
       })
     } catch (error) {
-      console.error("Error removing FAQ:", error)
+      console.error("BaseConhecimento: Error removing FAQ:", error)
       toast({
         title: "Erro ao remover FAQ",
-        description: "Não foi possível remover o FAQ. Tente novamente.",
+        description: `Não foi possível remover o FAQ. Detalhes: ${error instanceof Error ? error.message : String(error)}. Tente novamente.`,
         variant: "destructive",
       })
     } finally {
@@ -240,7 +251,7 @@ export default function BaseConhecimento() {
   }
 
   // Navegar para detalhes do FAQ
-  const handleViewDetails = (faq) => {
+  const handleViewDetails = (faq: FAQData) => { 
     router.push(`/base-conhecimento/${faq.id}`)
   }
 
@@ -266,7 +277,11 @@ export default function BaseConhecimento() {
 
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
-              <Button>
+              {/* Adicionando onClick explícito para garantir a abertura do diálogo */}
+              <Button onClick={() => {
+                console.log("BaseConhecimento: Botão 'Novo FAQ' clicado. Abrindo diálogo...");
+                setIsDialogOpen(true);
+              }}>
                 <PlusCircle className="mr-2 h-4 w-4" />
                 Novo FAQ
               </Button>
@@ -287,11 +302,12 @@ export default function BaseConhecimento() {
                       placeholder="Digite o título do FAQ"
                       value={formData.title}
                       onChange={(e) => handleInputChange("title", e.target.value)}
+                      required // Torna o campo obrigatório
                     />
                   </div>
                   <div className="grid gap-2">
                     <Label htmlFor="category">Categoria</Label>
-                    <Select value={formData.category} onValueChange={(value) => handleInputChange("category", value)}>
+                    <Select value={formData.category} onValueChange={(value) => handleInputChange("category", value)} required>
                       <SelectTrigger>
                         <SelectValue placeholder="Selecione uma categoria" />
                       </SelectTrigger>
@@ -418,7 +434,10 @@ export default function BaseConhecimento() {
                       Ver detalhes
                     </Button>
 
-                    <AlertDialog open={faqToDelete === faq.id} onOpenChange={(open) => !open && setFaqToDelete(null)}>
+                    <AlertDialog
+                      open={faqToDelete === faq.id}
+                      onOpenChange={(open) => !open && setFaqToDelete(null)}
+                    >
                       <AlertDialogTrigger asChild>
                         <Button
                           variant="ghost"

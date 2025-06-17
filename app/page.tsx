@@ -23,7 +23,7 @@ import { ImageUpload, type ImageWithMetadata } from "@/components/image-upload"
 import { categoryIcons } from "@/components/app-sidebar"
 import { useToast } from "@/components/ui/use-toast"
 
-// Dados de exemplo para as categorias
+// Dados de exemplo para as categorias (mantidos para o modal de adicionar FAQ)
 const categories = [
   { id: "gerente", name: "Gerente" },
   { id: "pdv", name: "PDV" },
@@ -36,11 +36,9 @@ const categories = [
 ]
 
 export default function Dashboard() {
-  // ❌ REMOVIDO: speds, getDailySummary, fetchSpeds, subscribeToSpeds
-  const { faqs, addFaq, autores, pendencias, setTheme } = useAppStore()
+  const { faqs = [], addFaq, autores = [], pendencias = [], setTheme } = useAppStore()
   const [dailyPassword, setDailyPassword] = useState("")
   const [isLoading, setIsLoading] = useState(false)
-  // ❌ REMOVIDO: isLoadingSpeds
   const { toast } = useToast()
   const [formData, setFormData] = useState({
     title: "",
@@ -49,8 +47,6 @@ export default function Dashboard() {
     author: "",
     images: [] as ImageWithMetadata[],
   })
-
-  // ❌ REMOVIDO: Todo o useEffect que carregava dados do SPED
 
   // Calcular a senha diária: data (DDMM) ÷ 8369 → pega 4 primeiros dígitos após vírgula, ignora zeros à esquerda
   useEffect(() => {
@@ -74,7 +70,6 @@ export default function Dashboard() {
 
   const handleRefresh = () => {
     setIsLoading(true)
-    // ❌ REMOVIDO: Refresh SPED data
     // Simular refresh dos dados
     setTimeout(() => {
       setIsLoading(false)
@@ -85,14 +80,13 @@ export default function Dashboard() {
     }, 1000)
   }
 
-  const handleInputChange = (field, value) => {
+  const handleInputChange = (field: string, value: any) => {
     setFormData({
       ...formData,
       [field]: value,
     })
   }
 
-  // Use useCallback to memoize the function
   const handleImagesSelected = useCallback((images: ImageWithMetadata[]) => {
     setFormData((prev) => ({
       ...prev,
@@ -100,27 +94,41 @@ export default function Dashboard() {
     }))
   }, [])
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     // Adicionar o novo FAQ
-    addFaq({
-      title: formData.title || "Novo FAQ",
-      category: formData.category,
-      description: formData.description || "Descrição do novo FAQ",
-      author: formData.author,
-      images: formData.images,
-    })
+    try {
+      await addFaq({
+        title: formData.title || "Novo FAQ",
+        category: formData.category,
+        description: formData.description || "Descrição do novo FAQ",
+        author: formData.author,
+        images: formData.images,
+      })
 
-    // Resetar o formulário
-    setFormData({
-      title: "",
-      category: "",
-      description: "",
-      author: "",
-      images: [],
-    })
+      // Resetar o formulário
+      setFormData({
+        title: "",
+        category: "",
+        description: "",
+        author: "",
+        images: [],
+      })
 
-    // Fechar o diálogo
-    document.querySelector('[data-state="open"]')?.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }))
+      // Fechar o diálogo
+      document.querySelector('[data-state="open"]')?.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }))
+
+      toast({
+        title: "FAQ adicionado",
+        description: "O FAQ foi adicionado com sucesso.",
+      })
+    } catch (error) {
+      console.error("Error adding FAQ:", error)
+      toast({
+        title: "Erro ao adicionar FAQ",
+        description: `Não foi possível adicionar o FAQ. Detalhes: ${error instanceof Error ? error.message : String(error)}.`,
+        variant: "destructive",
+      })
+    }
   }
 
   // Pegar os FAQs mais recentes (até 5)
@@ -134,10 +142,6 @@ export default function Dashboard() {
   const pendenciasConcluidas = pendencias.filter(
     (p) => p.status === "concluido" && new Date(p.data).toISOString().split("T")[0] === today,
   ).length
-
-  // ❌ REMOVIDO: Get SPED data for today
-  // ❌ REMOVIDO: Prepare data for the chart
-  // ❌ REMOVIDO: Check if we have any data to display in the chart
 
   return (
     <div className="flex flex-col gap-4 p-4 md:p-8">
@@ -165,7 +169,6 @@ export default function Dashboard() {
         <TabsList>
           <TabsTrigger value="estatisticas">Estatísticas</TabsTrigger>
           <TabsTrigger value="faqs-recentes">FAQs Recentes</TabsTrigger>
-          {/* ❌ REMOVIDO: Tab SPEDs */}
         </TabsList>
 
         <TabsContent value="estatisticas" className="space-y-4">
@@ -224,8 +227,6 @@ export default function Dashboard() {
                 <p className="text-xs text-muted-foreground">Concluídas hoje</p>
               </CardContent>
             </Card>
-
-            {/* ❌ REMOVIDO: Card SPEDs Gerados Hoje */}
           </div>
 
           {/* Adicionar card com senha diária */}
@@ -378,8 +379,6 @@ export default function Dashboard() {
             </CardFooter>
           </Card>
         </TabsContent>
-
-        {/* ❌ REMOVIDO: TabsContent value="speds" */}
       </Tabs>
     </div>
   )

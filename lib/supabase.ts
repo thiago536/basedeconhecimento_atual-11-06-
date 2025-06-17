@@ -28,9 +28,11 @@ export type Acesso = {
   maquina: string
   usuario: string
   senha: string
-  trabalho_andamento: string
-  status_maquininha: string
-  expandido?: boolean
+  adquirente?: string; // Adicionado de volta, pois é usado no componente e no banco
+  trabalho_andamento?: string; // Alterado para opcional
+  status_maquininha?: string; // Alterado para opcional
+  expandido?: boolean; // Adicionado para o controle de expansão da linha na tabela
+  created_at?: string; // Adicionado para consistência se necessário para ordenação
 }
 
 export type Author = {

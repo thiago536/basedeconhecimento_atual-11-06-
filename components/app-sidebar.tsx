@@ -84,12 +84,12 @@ export function AppSidebar() {
       title: "Acessos",
       href: "/acessos",
       icon: Key,
-      external: true,
     },
     {
       title: "SPEDs",
       href: "https://eprosyssped.vercel.app/",
       icon: FileSpreadsheet,
+      external: true,
     },
     {
       title: "Configuração",
@@ -118,12 +118,21 @@ export function AppSidebar() {
                   isActive={pathname === item.href}
                   className="hover:bg-blue-100 dark:hover:bg-blue-900/40"
                 >
-                  <Link href={item.href}>
-                    <item.icon
-                      className={`h-5 w-5 ${pathname === item.href ? "text-blue-600 dark:text-blue-400" : ""}`}
-                    />
-                    <span>{item.title}</span>
-                  </Link>
+                  {item.external ? (
+                    <a href={item.href} target="_blank" rel="noopener noreferrer">
+                      <item.icon
+                        className={`h-5 w-5 ${pathname === item.href ? "text-blue-600 dark:text-blue-400" : ""}`}
+                      />
+                      <span>{item.title}</span>
+                    </a>
+                  ) : (
+                    <Link href={item.href}>
+                      <item.icon
+                        className={`h-5 w-5 ${pathname === item.href ? "text-blue-600 dark:text-blue-400" : ""}`}
+                      />
+                      <span>{item.title}</span>
+                    </Link>
+                  )}
                 </SidebarMenuButton>
               </SidebarMenuItem>
             ))}

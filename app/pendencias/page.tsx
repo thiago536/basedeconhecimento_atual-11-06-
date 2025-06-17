@@ -36,12 +36,12 @@ import {
 
 export default function Pendencias() {
   const {
-    pendencias,
+    pendencias = [], 
     setPendencias,
     addPendencia,
     updatePendenciaStatus,
     subscribeToPendencias,
-    autores,
+    autores = [], 
     fetchAutores,
     subscribeToAutores,
   } = useAppStore()
@@ -57,6 +57,7 @@ export default function Pendencias() {
   const [isLoadingAuthors, setIsLoadingAuthors] = useState(true)
   const [isDeleting, setIsDeleting] = useState<number | null>(null)
   const [pendenciaToDelete, setPendenciaToDelete] = useState<number | null>(null)
+  const [showAddPendenciaDialog, setShowAddPendenciaDialog] = useState(false); // Estado para controlar o diálogo
 
   const { toast } = useToast()
 
@@ -79,17 +80,18 @@ export default function Pendencias() {
     const fetchInitialData = async () => {
       setIsLoading(true)
       const supabase = getSupabaseClient()
+      console.log("Pendencias: Buscando pendências iniciais...")
 
-      // Fetch pendencias
       const { data, error } = await supabase.from("pendencias").select("*").order("data", { ascending: false })
 
       if (error) {
-        console.error("Error fetching pendencias:", error)
+        console.error("Pendencias: Erro ao buscar pendências:", error)
         toast({
           title: "Erro ao carregar pendências",
-          description: "Não foi possível carregar as pendências. Tente novamente mais tarde.",
+          description: `Não foi possível carregar as pendências. Detalhes: ${error.message}. Tente novamente mais tarde.`,
           variant: "destructive",
         })
+        setPendencias([]); 
       } else {
         setPendencias(data)
       }
@@ -102,10 +104,10 @@ export default function Pendencias() {
       try {
         await fetchAutores()
       } catch (error) {
-        console.error("Error fetching authors:", error)
+        console.error("Pendencias: Error fetching authors:", error)
         toast({
           title: "Erro ao carregar autores",
-          description: "Não foi possível carregar a lista de autores. Tente novamente mais tarde.",
+          description: `Não foi possível carregar a lista de autores. Detalhes: ${error instanceof Error ? error.message : String(error)}. Tente novamente mais tarde.`,
           variant: "destructive",
         })
       }
@@ -115,32 +117,27 @@ export default function Pendencias() {
     fetchInitialData()
     fetchAuthors()
 
-    // Subscribe to real-time updates
     const unsubscribePendencias = subscribeToPendencias()
     const unsubscribeAuthors = subscribeToAutores()
 
-    // Cleanup
     return () => {
       unsubscribePendencias()
       unsubscribeAuthors()
     }
   }, [setPendencias, subscribeToPendencias, toast, fetchAutores, subscribeToAutores])
 
-  // Filtrar pendências com base na pesquisa
   const filteredPendencias = pendencias
     .filter(
       (pendencia) =>
         pendencia.titulo.toLowerCase().includes(searchTerm.toLowerCase()) ||
         pendencia.descricao.toLowerCase().includes(searchTerm.toLowerCase()),
     )
-    // Ordenar: primeiro as urgentes, depois por data (mais antigas primeiro)
     .sort((a, b) => {
       if (a.urgente !== b.urgente) return a.urgente ? -1 : 1
       return new Date(a.data).getTime() - new Date(b.data).getTime()
     })
 
-  // Atualizar status de uma pendência
-  const atualizarStatus = async (id, novoStatus) => {
+  const atualizarStatus = async (id: number, novoStatus: string) => { 
     try {
       await updatePendenciaStatus(id, novoStatus)
       toast({
@@ -148,17 +145,16 @@ export default function Pendencias() {
         description: "O status da pendência foi atualizado com sucesso.",
       })
     } catch (error) {
-      console.error("Error updating status:", error)
+      console.error("Pendencias: Error updating status:", error)
       toast({
         title: "Erro ao atualizar status",
-        description: "Não foi possível atualizar o status da pendência. Tente novamente.",
+        description: `Não foi possível atualizar o status da pendência. Detalhes: ${error instanceof Error ? error.message : String(error)}. Tente novamente.`,
         variant: "destructive",
       })
     }
   }
 
-  // Remover pendência
-  const removerPendencia = async (id) => {
+  const removerPendencia = async (id: number) => { 
     setIsDeleting(id)
     try {
       const supabase = getSupabaseClient()
@@ -168,16 +164,15 @@ export default function Pendencias() {
         throw error
       }
 
-      // Não precisamos atualizar o estado local, pois a subscription fará isso
       toast({
         title: "Pendência removida",
         description: "A pendência foi removida com sucesso.",
       })
     } catch (error) {
-      console.error("Error removing pendencia:", error)
+      console.error("Pendencias: Error removing pendencia:", error)
       toast({
         title: "Erro ao remover pendência",
-        description: "Não foi possível remover a pendência. Tente novamente.",
+        description: `Não foi possível remover a pendência. Detalhes: ${error instanceof Error ? error.message : String(error)}. Tente novamente.`,
         variant: "destructive",
       })
     } finally {
@@ -186,13 +181,10 @@ export default function Pendencias() {
     }
   }
 
-  // Exportar pendências para Excel (simulado)
   const exportarPendencias = () => {
-    // Criar conteúdo CSV com formatação melhorada
     const headers = ["ID", "Título", "Descrição", "Status", "Urgência", "Data", "Autor"]
 
-    // Função para formatar o status
-    const formatarStatus = (status) => {
+    const formatarStatus = (status: string) => { 
       switch (status) {
         case "nao-concluido":
           return "Não Concluído"
@@ -220,7 +212,6 @@ export default function Pendencias() {
       ),
     ].join("\n")
 
-    // Criar blob e link para download
     const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" })
     const url = URL.createObjectURL(blob)
     const link = document.createElement("a")
@@ -230,21 +221,35 @@ export default function Pendencias() {
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
+    toast({
+      title: "Exportado",
+      description: "As pendências foram exportadas para um ficheiro CSV.",
+    });
   }
 
   const handleSubmit = async () => {
-    try {
-      // Criar nova pendência
-      await addPendencia({
-        titulo: novaPendencia.titulo || "Nova pendência",
-        descricao: novaPendencia.descricao || "Descrição da pendência",
-        status: "nao-concluido",
-        urgente: novaPendencia.urgente,
-        data: new Date().toISOString(),
-        author: novaPendencia.author || null,
-      })
+    console.log("Pendencias: Dados do formulário sendo enviados:", novaPendencia);
+    if (!novaPendencia.titulo) {
+      toast({
+        title: "Campo obrigatório",
+        description: "O Título da pendência é obrigatório.",
+        variant: "destructive",
+      });
+      console.error("Pendencias: Tentativa de envio com título vazio.");
+      return; 
+    }
 
-      // Resetar formulário
+    try {
+      await addPendencia({
+        titulo: novaPendencia.titulo, 
+        descricao: novaPendencia.descricao || "Sem descrição", 
+        status: "nao-concluido", 
+        urgente: novaPendencia.urgente,
+        data: new Date().toISOString(), 
+        author: novaPendencia.author || null, 
+      })
+      console.log("Pendencias: Pendência adicionada com sucesso ao Supabase.");
+
       setNovaPendencia({
         titulo: "",
         descricao: "",
@@ -252,18 +257,19 @@ export default function Pendencias() {
         author: "",
       })
 
-      // Fechar o diálogo
-      document.querySelector('[data-state="open"]')?.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }))
+      setShowAddPendenciaDialog(false); 
+      console.log("Pendencias: Diálogo de pendência fechado após sucesso.");
+
 
       toast({
         title: "Pendência adicionada",
         description: "A pendência foi adicionada com sucesso.",
       })
     } catch (error) {
-      console.error("Error adding pendencia:", error)
+      console.error("Pendencias: Erro ao adicionar pendência:", error)
       toast({
         title: "Erro ao adicionar pendência",
-        description: "Não foi possível adicionar a pendência. Tente novamente.",
+        description: `Não foi possível adicionar a pendência. Detalhes: ${error instanceof Error ? error.message : String(error)}. Tente novamente.`,
         variant: "destructive",
       })
     }
@@ -291,9 +297,16 @@ export default function Pendencias() {
             />
           </div>
 
-          <Dialog>
-            <DialogTrigger asChild>
-              <Button>
+          {/* O Dialog agora encapsula o DialogTrigger e o Button, SEM o 'asChild' no DialogTrigger */}
+          <Dialog open={showAddPendenciaDialog} onOpenChange={(open) => {
+            console.log("Pendencias: Dialog onOpenChange chamado. Novo estado:", open);
+            setShowAddPendenciaDialog(open);
+          }}>
+            <DialogTrigger> {/* Removido asChild */}
+              <Button onClick={() => {
+                console.log("Pendencias: Botão 'Adicionar' (pendência) clicado. Definindo showAddPendenciaDialog como true.");
+                setShowAddPendenciaDialog(true);
+              }}>
                 <PlusCircle className="mr-2 h-4 w-4" />
                 Adicionar
               </Button>
@@ -311,6 +324,7 @@ export default function Pendencias() {
                     placeholder="Digite o título da pendência"
                     value={novaPendencia.titulo}
                     onChange={(e) => setNovaPendencia({ ...novaPendencia, titulo: e.target.value })}
+                    required 
                   />
                 </div>
                 <div className="grid gap-2">
