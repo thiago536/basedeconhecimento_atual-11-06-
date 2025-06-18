@@ -1,269 +1,346 @@
-"use client";
+'use client'
 
-import React, { useEffect, useState, useTransition, useMemo, useCallback } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import { useDebounce } from "@/hooks/use-debounce";
-import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { supabase, type FAQ, type Autor } from "@/lib/supabase";
-import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Button } from "@/components/ui/button"; // Removida a importação 'buttonVariants' para simplificar
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { useAppStore } from "@/lib/store";
-import ImageUpload, { type ImageWithMetadata } from "@/components/image-upload";
-import { useToast } from "@/components/ui/use-toast";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { PlusCircle, Search, Settings, Trash2 } from "lucide-react";
+import React, { useState, useRef, useEffect } from 'react'
+import { type FAQ } from '@/lib/supabase'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { ArrowLeft, ZoomIn, BookOpen, Plus, Minus } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { ImageZoomModal } from './image-zoom-modal'
+import { SafeImage } from './safe-image'
 
-// --- Componente de Formulário Reutilizável para Adicionar e Editar FAQs ---
-function FaqForm({
-  faq,
-  onSave,
-  onCancel,
-  isLoading,
-  autores,
-}: {
-  faq: Partial<FAQ>;
-  onSave: (faqData: Partial<FAQ>) => void;
-  onCancel: () => void;
-  isLoading: boolean;
-  autores: Autor[];
-}) {
-  const [formData, setFormData] = useState<Partial<FAQ>>(faq);
+// Interface para compatibilidade com o formato de imagens usado no ImageUpload
+interface ImageWithMetadata {
+  src: string
+  title: string
+  description: string
+}
 
-  useEffect(() => {
-    const initialImages = Array.isArray(faq.images) ? faq.images : [];
-    setFormData({...faq, images: initialImages});
-  }, [faq]);
+export default function FaqDetailClient({ faq }: { faq: FAQ }) {
+  const router = useRouter()
+  const [zoomImage, setZoomImage] = useState<string | null>(null)
+  const [zoomLevel, setZoomLevel] = useState<number>(2)
+  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 })
+  const zoomContainerRef = useRef<HTMLDivElement>(null)
+  const imageRef = useRef<HTMLImageElement>(null)
 
-  const handleImagesSelected = useCallback((images: ImageWithMetadata[]) => {
-    setFormData(prev => ({ ...prev, images }));
-  }, []);
+  // Função para processar as imagens de forma segura
+  const processImages = () => {
+    if (!faq.images) return []
+    
+    // Se for uma string JSON, faz o parse
+    if (typeof faq.images === 'string') {
+      try {
+        const parsed = JSON.parse(faq.images)
+        return Array.isArray(parsed) ? parsed : []
+      } catch (e) {
+        console.error('Erro ao fazer parse das imagens:', e)
+        return []
+      }
+    }
+    
+    // Se já for um array, retorna diretamente
+    if (Array.isArray(faq.images)) {
+      return faq.images
+    }
+    
+    return []
+  }
 
-  const handleChange = (field: keyof Omit<FAQ, 'id' | 'created_at'>, value: string | ImageWithMetadata[]) => {
-    setFormData(prev => ({...prev, [field]: value}));
+  const images = processImages()
+
+  // Função para lidar com o clique no zoom
+  const handleZoomClick = (imageUrl: string) => {
+    console.log('URL da imagem para zoom:', imageUrl) // Debug
+    setZoomImage(imageUrl)
+    // Reset zoom level when opening a new image
+    setZoomLevel(2)
+    // Reset cursor position to center
+    if (zoomContainerRef.current) {
+      const rect = zoomContainerRef.current.getBoundingClientRect();
+      setMousePosition({
+        x: rect.width / 2,
+        y: rect.height / 2,
+      });
+    }
+  }
+
+  // Track mouse position over the zoomed image
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!zoomContainerRef.current) return;
+    
+    const rect = zoomContainerRef.current.getBoundingClientRect();
+    // Calculate mouse position relative to container
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    
+    setMousePosition({ x, y });
   };
 
-  const categories = [
-    { id: "gerente", name: "Gerente" }, { id: "pdv", name: "PDV" },
-    { id: "pdv-movel", name: "PDV Móvel" }, { id: "instalacao", name: "Instalação" },
-    { id: "automacao", name: "Automação" }, { id: "integracao", name: "Integração" },
-    { id: "impressoras", name: "Impressoras" }, { id: "pinpad", name: "PINPAD" },
-  ];
+  // Adjust zoom in/out with buttons or scroll wheel
+  const adjustZoom = (amount: number) => {
+    setZoomLevel((prev) => {
+      const newZoom = prev + amount;
+      // Limit zoom range between 1 and 8
+      return Math.min(Math.max(newZoom, 1), 8);
+    });
+  };
+
+  // Handle wheel event for zooming
+  const handleWheel = (e: React.WheelEvent) => {
+    e.preventDefault();
+    const delta = e.deltaY > 0 ? -0.5 : 0.5;
+    adjustZoom(delta);
+  };
+
+  // Calculate transform values for the zoomed image
+  const getImageTransform = () => {
+    if (!zoomContainerRef.current || !imageRef.current) {
+      return { transform: 'translate(0, 0) scale(1)' };
+    }
+
+    const containerRect = zoomContainerRef.current.getBoundingClientRect();
+    const containerWidth = containerRect.width;
+    const containerHeight = containerRect.height;
+    
+    // Calculate the percentage of cursor position within the container
+    const xPercent = mousePosition.x / containerWidth;
+    const yPercent = mousePosition.y / containerHeight;
+    
+    // Calculate translation based on cursor position and zoom level
+    // As zoom increases, we need more translation to keep the point under cursor
+    const translateX = (0.5 - xPercent) * containerWidth * (zoomLevel - 1) / zoomLevel;
+    const translateY = (0.5 - yPercent) * containerHeight * (zoomLevel - 1) / zoomLevel;
+    
+    return {
+      transform: `translate(${translateX}px, ${translateY}px) scale(${zoomLevel})`,
+      transition: 'transform 0.05s ease-out',
+    };
+  };
 
   return (
     <>
-      <DialogHeader>
-        <DialogTitle>{formData.id ? 'Editar Artigo' : 'Adicionar Novo Artigo'}</DialogTitle>
-        <DialogDescription>Preencha os detalhes para gerir o artigo na base de conhecimento.</DialogDescription>
-      </DialogHeader>
-      <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto pr-4">
-        <div className="grid gap-2"><Label htmlFor="title">Título</Label><Input id="title" value={formData.title || ''} onChange={(e) => handleChange('title', e.target.value)} placeholder="Título do artigo" /></div>
-        <div className="grid gap-2"><Label htmlFor="category">Categoria</Label>
-          <Select value={formData.category} onValueChange={(value) => handleChange('category', value)}>
-            <SelectTrigger><SelectValue placeholder="Selecione uma categoria" /></SelectTrigger>
-            <SelectContent>{categories.map((cat) => (<SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>))}</SelectContent>
-          </Select>
-        </div>
-        <div className="grid gap-2"><Label htmlFor="description">Descrição / Conteúdo</Label><Textarea id="description" value={formData.description || ''} onChange={(e) => handleChange('description', e.target.value)} placeholder="Escreva o conteúdo do artigo aqui..." rows={6} /></div>
-        <div className="grid gap-2"><Label htmlFor="author">Autor</Label>
-            <Select value={formData.author || ''} onValueChange={(value) => handleChange('author', value)}>
-                <SelectTrigger><SelectValue placeholder="Selecione o autor" /></SelectTrigger>
-                <SelectContent>{autores.length > 0 ? (autores.map((autor) => (<SelectItem key={autor.id} value={autor.name}>{autor.name}</SelectItem>))) : (<SelectItem value="none" disabled>Nenhum autor</SelectItem>)}</SelectContent>
-            </Select>
-        </div>
-        <div className="grid gap-2"><Label>Imagens</Label><ImageUpload onImagesSelected={handleImagesSelected} initialImages={formData.images as ImageWithMetadata[]} /></div>
+      <div className="mb-6">
+        <Button variant="outline" onClick={() => router.back()}>
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Voltar
+        </Button>
       </div>
-      <DialogFooter>
-        <Button variant="outline" onClick={onCancel}>Cancelar</Button>
-        <Button onClick={() => onSave(formData)} disabled={isLoading}>{isLoading ? "A guardar..." : "Guardar"}</Button>
-      </DialogFooter>
-    </>
-  );
-}
 
-// --- Componente Principal da Página ---
-export default function BaseConhecimentoPage() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const [isPending, startTransition] = useTransition();
-
-  const [artigos, setArtigos] = useState<FAQ[]>([]);
-  const [categorias, setCategorias] = useState<string[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [processing, setProcessing] = useState(false);
-  
-  const [isFormOpen, setIsFormOpen] = useState(false);
-  const [faqEmEdicao, setFaqEmEdicao] = useState<Partial<FAQ> | null>(null);
-  const [faqParaRemover, setFaqParaRemover] = useState<FAQ | null>(null);
-
-  const { toast } = useToast();
-  const { addFaq, updateFaq, deleteFaq, autores, fetchAutores, subscribeToAutores } = useAppStore();
-
-  const [searchTerm, setSearchTerm] = useState(searchParams.get("q") || "");
-  const [selectedCategory, setSelectedCategory] = useState(searchParams.get("category") || "all");
-  const debouncedSearchTerm = useDebounce(searchTerm, 300);
-
-  const fetchArtigos = useCallback(async () => {
-    setLoading(true);
-    try {
-      const { data, error } = await supabase.from("faqs").select("*").order("created_at", { ascending: false });
-      if (error) throw error;
-      setArtigos(data || []);
-    } catch (error) {
-      toast({ title: "Erro ao carregar artigos", description: (error as Error).message, variant: "destructive" });
-    } finally {
-      setLoading(false);
-    }
-  }, [toast]);
-
-  useEffect(() => {
-    fetchArtigos();
-    fetchAutores();
-    const unsubscribe = subscribeToAutores();
-    return () => {
-      if (typeof unsubscribe === 'function') unsubscribe();
-    };
-  }, [fetchArtigos, fetchAutores, subscribeToAutores]);
-  
-  useEffect(() => {
-      const getCategories = async () => {
-        const { data, error } = await supabase.from("faqs").select("category");
-        if (error) console.error("Erro ao buscar categorias:", error);
-        else if (data) {
-          const uniqueCategorias = [...new Set(data.map((item) => item.category))];
-          setCategorias(uniqueCategorias as string[]);
-        }
-      }
-      if(artigos.length > 0) getCategories();
-  }, [artigos]);
-
-
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    if (debouncedSearchTerm) params.set("q", debouncedSearchTerm);
-    else params.delete("q");
-
-    if (selectedCategory && selectedCategory !== "all") params.set("category", selectedCategory);
-    else params.delete("category");
-
-    startTransition(() => router.replace(`${window.location.pathname}?${params.toString()}`));
-  }, [debouncedSearchTerm, selectedCategory, router]);
-  
-  const handleAbrirForm = (faq?: FAQ) => {
-    setFaqEmEdicao(faq ? { ...faq } : {});
-    setIsFormOpen(true);
-  };
-
-  const handleSalvarFaq = async (faqData: Partial<FAQ>) => {
-    if (!faqData.title || !faqData.category) {
-      toast({ title: "Campos obrigatórios", description: "Título e Categoria são obrigatórios.", variant: "destructive" });
-      return;
-    }
-    setProcessing(true);
-    try {
-      if (faqData.id) {
-        await updateFaq(faqData.id, faqData);
-        toast({ title: "Sucesso", description: "Artigo atualizado com sucesso." });
-      } else {
-        await addFaq(faqData as Omit<FAQ, 'id' | 'created_at'>);
-        toast({ title: "Sucesso", description: "Novo artigo adicionado." });
-      }
-      setIsFormOpen(false);
-      fetchArtigos();
-    } catch (error) {
-      toast({ title: "Erro ao guardar artigo", description: (error as Error).message, variant: "destructive" });
-    } finally {
-      setProcessing(false);
-    }
-  };
-
-  const handleConfirmarRemocao = async () => {
-    if (!faqParaRemover) return;
-    setProcessing(true);
-    try {
-      await deleteFaq(faqParaRemover.id);
-      toast({ title: "Artigo removido", description: "O artigo foi removido com sucesso." });
-      fetchArtigos();
-    } catch (error) {
-      toast({ title: "Erro ao remover", description: (error as Error).message, variant: "destructive" });
-    } finally {
-      setProcessing(false);
-      setFaqParaRemover(null);
-    }
-  };
-
-  const filteredFaqs = useMemo(() =>
-    artigos.filter((faq) => {
-        const matchesSearch =
-        (faq.title?.toLowerCase() || '').includes(debouncedSearchTerm.toLowerCase()) ||
-        (faq.description?.toLowerCase() || '').includes(debouncedSearchTerm.toLowerCase());
-        const matchesCategory = selectedCategory === "all" || faq.category === selectedCategory;
-        return matchesSearch && matchesCategory;
-    }),
-  [artigos, debouncedSearchTerm, selectedCategory]);
-
-  return (
-    <main className="flex-1 bg-gray-50/50 dark:bg-gray-900/50 p-6 md:p-8">
-      <div className="max-w-7xl mx-auto">
-        <div className="mb-8"><h1 className="text-4xl font-bold tracking-tight text-gray-900 dark:text-gray-100">Base de Conhecimento</h1><p className="mt-2 text-lg text-gray-600 dark:text-gray-400">Encontre artigos, tutoriais e soluções para as suas dúvidas.</p></div>
-
-        <div className="mb-8 flex flex-col items-center gap-4 md:flex-row">
-          <div className="relative flex-1 w-full"><Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" /><Input className="pl-10 h-11" placeholder="Pesquisar artigos..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} /></div>
-          <Select value={selectedCategory} onValueChange={setSelectedCategory}><SelectTrigger className="w-full md:w-[220px] h-11"><SelectValue placeholder="Categorias" /></SelectTrigger><SelectContent><SelectItem value="all">Todas as Categorias</SelectItem>{categorias.map((cat) => (<SelectItem key={cat} value={cat}>{cat}</SelectItem>))}</SelectContent></Select>
-          <Button className="w-full md:w-auto shadow-sm h-11" onClick={() => handleAbrirForm()}><PlusCircle className="mr-2 h-5 w-5"/>Novo Artigo</Button>
-        </div>
-        
-        <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
-            <DialogContent className="sm:max-w-2xl">
-                {faqEmEdicao && <FaqForm onSave={handleSalvarFaq} onCancel={() => setIsFormOpen(false)} isLoading={processing} autores={autores} faq={faqEmEdicao} />}
-            </DialogContent>
-        </Dialog>
-        
-        <AlertDialog open={!!faqParaRemover} onOpenChange={(open) => !open && setFaqParaRemover(null)}>
-            <AlertDialogContent>
-                <AlertDialogHeader><AlertDialogTitle>Confirmar Remoção</AlertDialogTitle><AlertDialogDescription>Tem a certeza de que deseja remover o artigo "{faqParaRemover?.title}"?</AlertDialogDescription></AlertDialogHeader>
-                <AlertDialogFooter>
-                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                    {/* CORREÇÃO: Removida a chamada à função 'buttonVariants' para simplificar o código e evitar erros. */}
-                    <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={handleConfirmarRemocao}>
-                      Remover
-                    </AlertDialogAction>
-                </AlertDialogFooter>
-            </AlertDialogContent>
-        </AlertDialog>
-
-        {loading || isPending ? (
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">{Array.from({ length: 6 }).map((_, i) => (<Card key={i} className="p-4"><Skeleton className="h-48 w-full rounded-lg" /></Card>))}</div>
-        ) : (
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {filteredFaqs.length > 0 ? (
-              filteredFaqs.map((artigo) => (
-                <Card key={artigo.id} className="flex flex-col h-full rounded-xl overflow-hidden transition-all duration-300 hover:shadow-xl hover:-translate-y-1 border-gray-200/80 dark:border-gray-800/80">
-                  <CardHeader className="p-6">
-                    <Badge variant="secondary" className="w-fit mb-3">{artigo.category}</Badge>
-                    <CardTitle className="text-xl font-bold line-clamp-2 text-gray-900 dark:text-gray-100">{artigo.title}</CardTitle>
-                  </CardHeader>
-                  <CardContent className="flex-grow p-6 pt-0"><p className="line-clamp-3 text-sm text-gray-600 dark:text-gray-400">{artigo.description}</p></CardContent>
-                  <CardFooter className="p-4 pt-4 bg-gray-50 dark:bg-gray-800/50 mt-auto flex justify-between items-center">
-                    <Button variant="link" className="flex-1 justify-start p-0" onClick={() => router.push(`/base-conhecimento/${artigo.id}`)}>Ver Detalhes</Button>
-                    <div className="flex">
-                        <Button variant="ghost" size="icon" onClick={() => handleAbrirForm(artigo)}><Settings className="h-4 w-4" /></Button>
-                        <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive" onClick={() => setFaqParaRemover(artigo)}><Trash2 className="h-4 w-4" /></Button>
-                    </div>
-                  </CardFooter>
-                </Card>
-              ))
-            ) : (
-              <div className="col-span-full py-16 text-center text-gray-500"><p className="text-lg">Nenhum artigo encontrado.</p><p className="mt-1 text-sm">Tente ajustar os seus termos de pesquisa ou filtros.</p></div>
-            )}
+      <Card className="flex flex-col">
+        <CardHeader>
+          <div className="flex items-center gap-2 mb-2">
+            <BookOpen className="h-5 w-5 text-primary" />
+            <CardTitle className="text-2xl font-bold">{faq.title || 'Título não disponível'}</CardTitle>
           </div>
-        )}
-      </div>
-    </main>
-  );
+          <CardDescription>
+            <Badge variant="secondary" className="text-sm">
+              {faq.category || 'Categoria não definida'}
+            </Badge>
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex-1 space-y-6">
+          <div>
+            <h3 className="text-lg font-semibold mb-3 text-gray-800 dark:text-gray-200">Descrição</h3>
+            <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4">
+              <p className="text-gray-700 dark:text-gray-300 whitespace-pre-line leading-relaxed">
+                {faq.description || 'Descrição não disponível.'}
+              </p>
+            </div>
+          </div>
+
+          {/* Seção de imagens com layout moderno */}
+          {images.length > 0 && (
+            <div>
+              <h3 className="text-lg font-semibold mb-4 text-gray-800 dark:text-gray-200">
+                Imagens Anexadas ({images.length})
+              </h3>
+              <div className="space-y-4">
+                {images.map((image, index) => {
+                  // Suporte para diferentes formatos de imagem
+                  let imageUrl: string
+                  let imageTitle: string
+                  let imageDescription: string
+
+                  if (typeof image === 'string') {
+                    // Formato antigo: apenas URL
+                    imageUrl = image
+                    imageTitle = `Imagem ${index + 1}`
+                    imageDescription = ''
+                  } else if (image && typeof image === 'object') {
+                    // Formato novo: objeto com metadados
+                    const imgObj = image as ImageWithMetadata
+                    imageUrl = imgObj.src || (image as any).url || ''
+                    imageTitle = imgObj.title || `Imagem ${index + 1}`
+                    imageDescription = imgObj.description || ''
+                  } else {
+                    return null
+                  }
+
+                  if (!imageUrl) {
+                    console.warn(`Imagem ${index} não possui URL válida:`, image)
+                    return null
+                  }
+
+                  console.log(`Imagem ${index} processada:`, { imageUrl, imageTitle, imageDescription }) // Debug
+
+                  return (
+                    <div key={index} className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm hover:shadow-md transition-shadow">
+                      <div className="flex gap-4 p-4">
+                        {/* Imagem com botão de zoom */}
+                        <div className="relative flex-shrink-0">
+                          <SafeImage
+                            src={imageUrl}
+                            alt={imageTitle}
+                            className="w-32 h-32 object-cover rounded-lg border border-gray-200 dark:border-gray-600"
+                          />
+                          <Button
+                            variant="secondary"
+                            size="icon"
+                            className="absolute top-2 right-2 h-8 w-8 rounded-full bg-black/60 text-white hover:bg-black/80 transition-colors"
+                            onClick={() => handleZoomClick(imageUrl)}
+                          >
+                            <ZoomIn className="h-4 w-4" />
+                            <span className="sr-only">Ampliar imagem: {imageTitle}</span>
+                          </Button>
+                        </div>
+
+                        {/* Informações da imagem */}
+                        <div className="flex-1 min-w-0">
+                          <div className="space-y-2">
+                            <div>
+                              <h4 className="text-base font-semibold text-gray-900 dark:text-gray-100">
+                                Título
+                              </h4>
+                              <p className="text-gray-700 dark:text-gray-300 break-words">
+                                {imageTitle}
+                              </p>
+                            </div>
+                            
+                            {imageDescription && (
+                              <div>
+                                <h4 className="text-base font-semibold text-gray-900 dark:text-gray-100">
+                                  Descrição
+                                </h4>
+                                <p className="text-gray-700 dark:text-gray-300 break-words leading-relaxed">
+                                  {imageDescription}
+                                </p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          <div>
+            <h3 className="text-lg font-semibold mb-3 text-gray-800 dark:text-gray-200">Autor</h3>
+            <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3">
+              <p className="text-gray-700 dark:text-gray-300 font-medium">
+                {faq.author || 'Autor não informado'}
+              </p>
+            </div>
+          </div>
+
+          {/* Informações adicionais */}
+          {faq.created_at && (
+            <div>
+              <h3 className="text-lg font-semibold mb-3 text-gray-800 dark:text-gray-200">Data de Criação</h3>
+              <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3">
+                <p className="text-gray-700 dark:text-gray-300">
+                  {new Date(faq.created_at).toLocaleDateString('pt-BR', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                  })}
+                </p>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Modal de zoom avançado com seguimento do cursor */}
+      {zoomImage && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80" 
+          onClick={() => setZoomImage(null)}
+        >
+          <div 
+            ref={zoomContainerRef} 
+            className="relative max-w-4xl max-h-[90vh] w-full h-full overflow-hidden cursor-zoom-in"
+            onMouseMove={handleMouseMove}
+            onClick={(e) => e.stopPropagation()} // Prevent closing when clicking inside container
+            onWheel={handleWheel}
+          >
+            <div className="absolute inset-0 flex items-center justify-center overflow-hidden">
+              <img
+                ref={imageRef}
+                src={zoomImage}
+                alt="Imagem ampliada"
+                className="max-w-full max-h-full object-contain"
+                style={getImageTransform()}
+                onLoad={() => console.log('Imagem carregada com sucesso no zoom:', zoomImage)}
+                onError={(e) => console.error('Erro ao carregar imagem no zoom:', zoomImage, e)}
+              />
+            </div>
+            
+            <div className="absolute top-4 right-4 flex flex-col bg-black/40 rounded-lg p-1 space-y-2">
+              <Button
+                variant="secondary"
+                size="icon"
+                className="rounded-full h-8 w-8 flex items-center justify-center bg-white/20 hover:bg-white/30"
+                onClick={() => adjustZoom(0.5)}
+              >
+                <Plus className="h-4 w-4" />
+                <span className="sr-only">Aumentar zoom</span>
+              </Button>
+              
+              <div className="text-white text-center text-xs bg-black/60 px-2 py-1 rounded">
+                {(zoomLevel * 50)}%
+              </div>
+              
+              <Button
+                variant="secondary"
+                size="icon"
+                className="rounded-full h-8 w-8 flex items-center justify-center bg-white/20 hover:bg-white/30"
+                onClick={() => adjustZoom(-0.5)}
+              >
+                <Minus className="h-4 w-4" />
+                <span className="sr-only">Diminuir zoom</span>
+              </Button>
+            </div>
+            
+            <Button
+              variant="secondary"
+              size="icon"
+              className="absolute top-4 left-4 rounded-full bg-white/20 hover:bg-white/30"
+              onClick={() => setZoomImage(null)}
+            >
+              <ArrowLeft className="h-4 w-4" />
+              <span className="sr-only">Fechar zoom</span>
+            </Button>
+            
+            <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 text-sm text-white/80 bg-black/40 px-3 py-1 rounded-full">
+              Utilize a roda do mouse para ajustar o zoom ou os botões + e -
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Fallback para o modal original caso exista */}
+      <ImageZoomModal
+        isOpen={false} // Desabilitado permanentemente, usando o modal customizado
+        onClose={() => setZoomImage(null)}
+        imageUrl={zoomImage || ""}
+      />
+    </>
+  )
 }
