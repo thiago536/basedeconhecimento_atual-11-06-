@@ -1,68 +1,40 @@
-import { create } from "zustand"
-import { persist } from "zustand/middleware"
-import { getSupabaseClient } from "./supabase"
-import type { Pendencia, Acesso } from "./supabase"
+import { create } from "zustand";
+import { persist } from "zustand/middleware";
+import { supabase, type Pendencia, type Acesso, type FAQData, type Autor } from "./supabase";
 
-// Definição dos tipos
 export interface ImageWithMetadata {
-  src: string
-  title: string
-  description: string
+  src: string;
+  title: string;
+  description: string;
 }
 
-export interface FAQData {
-  id: number
-  title: string
-  category: string
-  description: string
-  author?: string
-  images?: any[]
-}
-
-export interface Autor {
-  id: number
-  name: string
-}
-
-// Interface AppState LIMPA (sem SPED)
 interface AppState {
-  theme: "light" | "dark" | "system"
-  setTheme: (theme: "light" | "dark" | "system") => void
-  
-  // FAQs
-  faqs: FAQData[]
-  setFaqs: (faqs: FAQData[]) => void
-  addFaq: (faq: Omit<FAQData, "id">) => Promise<void>
-  updateFaq: (id: number, faq: Partial<FAQData>) => Promise<void>
-  deleteFaq: (id: number) => Promise<void>
-  getFaqById: (id: number) => FAQData | undefined
-  getFaqsByCategory: (category: string) => FAQData[]
-  addImageToFaq: (faqId: number, image: ImageWithMetadata) => Promise<void>
-  subscribeToFaqs: () => () => void
-  
-  // Autores
-  autores: Autor[]
-  setAutores: (autores: Autor[]) => void
-  addAutor: (nome: string) => Promise<void>
-  removeAutor: (id: number) => Promise<void>
-  fetchAutores: () => Promise<void>
-  subscribeToAutores: () => () => void
-  
-  // Acessos
-  acessos: Acesso[]
-  setAcessos: (acessos: Acesso[]) => void
-  addAcesso: (acesso: Omit<Acesso, "id" | "expandido" | "created_at">) => Promise<void>
-  updateAcesso: (id: number, acesso: Partial<Acesso>) => Promise<void>
-  deleteAcesso: (id: number) => Promise<void> // Mantido para tipagem, mas a lógica será removida do frontend por enquanto
-  subscribeToAcessos: () => () => void
-  
-  // Pendências
-  pendencias: Pendencia[]
-  setPendencias: (pendencias: Pendencia[]) => void
-  addPendencia: (pendencia: Omit<Pendencia, "id">) => Promise<void>
-  updatePendenciaStatus: (id: number, status: string) => Promise<void>
-  deletePendencia: (id: number) => Promise<void>
-  subscribeToPendencias: () => () => void
+  theme: "light" | "dark" | "system";
+  setTheme: (theme: "light" | "dark" | "system") => void;
+  faqs: FAQData[];
+  setFaqs: (faqs: FAQData[]) => void;
+  addFaq: (faq: Omit<FAQData, "id" | "created_at">) => Promise<void>;
+  updateFaq: (id: number, faq: Partial<FAQData>) => Promise<void>;
+  deleteFaq: (id: number) => Promise<void>;
+  subscribeToFaqs: () => () => void;
+  autores: Autor[];
+  setAutores: (autores: Autor[]) => void;
+  addAutor: (nome: string) => Promise<void>;
+  removeAutor: (id: number) => Promise<void>;
+  fetchAutores: () => Promise<void>;
+  subscribeToAutores: () => () => void;
+  acessos: Acesso[];
+  setAcessos: (acessos: Acesso[]) => void;
+  addAcesso: (acesso: Omit<Acesso, "id" | "expandido" | "created_at">) => Promise<void>;
+  updateAcesso: (id: number, acesso: Partial<Acesso>) => Promise<void>;
+  deleteAcesso: (id: number) => Promise<void>;
+  subscribeToAcessos: () => () => void;
+  pendencias: Pendencia[];
+  setPendencias: (pendencias: Pendencia[]) => void;
+  addPendencia: (pendencia: Omit<Pendencia, "id" | "status">) => Promise<void>;
+  updatePendenciaStatus: (id: number, status: string) => Promise<void>;
+  deletePendencia: (id: number) => Promise<void>;
+  subscribeToPendencias: () => () => void;
 }
 
 export const useAppStore = create<AppState>()(
@@ -74,448 +46,135 @@ export const useAppStore = create<AppState>()(
       // FAQs
       faqs: [],
       setFaqs: (faqs) => set({ faqs }),
-      
       addFaq: async (faq) => {
-        try {
-          const supabase = getSupabaseClient()
-          const imagesJson = faq.images ? JSON.stringify(faq.images) : null
-          const { error } = await supabase
-            .from("faqs")
-            .insert({
-              title: faq.title,
-              category: faq.category,
-              description: faq.description,
-              author: faq.author || null,
-              images: imagesJson,
-            })
-          if (error) throw error
-        } catch (error) {
-          console.error("Error in addFaq:", error)
-          throw error
-        }
+        const { error } = await supabase.from("faqs").insert({ ...faq, images: faq.images ? JSON.stringify(faq.images) : null });
+        if (error) throw error;
       },
-
       updateFaq: async (id, faq) => {
-        try {
-          const supabase = getSupabaseClient()
-          const updateData: any = {}
-          
-          if (faq.title !== undefined) updateData.title = faq.title
-          if (faq.category !== undefined) updateData.category = faq.category
-          if (faq.description !== undefined) updateData.description = faq.description
-          if (faq.author !== undefined) updateData.author = faq.author
-          if (faq.images !== undefined) updateData.images = JSON.stringify(faq.images)
-          
-          const { error } = await supabase
-            .from("faqs")
-            .update(updateData)
-            .eq("id", id)
-            
-          if (error) throw error
-        } catch (error) {
-          console.error("Error in updateFaq:", error)
-          throw error
-        }
+        const { error } = await supabase.from("faqs").update({ ...faq, images: faq.images ? JSON.stringify(faq.images) : undefined }).eq("id", id);
+        if (error) throw error;
       },
-      
       deleteFaq: async (id) => {
-        try {
-          const supabase = getSupabaseClient()
-          const { error } = await supabase.from("faqs").delete().eq("id", id)
-          if (error) throw error
-        } catch (error) {
-          console.error("Error in deleteFaq:", error)
-          throw error
-        }
+        const { error } = await supabase.from("faqs").delete().eq("id", id);
+        if (error) throw error;
+        set((state) => ({ faqs: state.faqs.filter((f) => f.id !== id) }));
       },
-
-      getFaqById: (id) => {
-        const { faqs } = get()
-        return faqs.find((faq) => faq.id === id)
-      },
-      
-      getFaqsByCategory: (category) => {
-        const { faqs } = get()
-        return category === "all" ? faqs : faqs.filter((faq) => faq.category === category)
-      },
-      
-      addImageToFaq: async (faqId, image) => {
-        try {
-          const supabase = getSupabaseClient()
-          const { faqs } = get()
-          const faq = faqs.find((f) => f.id === faqId)
-          if (!faq) return
-          
-          const updatedImages = [...(faq.images || []), image]
-          const { error } = await supabase
-            .from("faqs")
-            .update({ images: JSON.stringify(updatedImages) })
-            .eq("id", faqId)
-            
-          if (error) throw error
-        } catch (error) {
-          console.error("Error in addImageToFaq:", error)
-          throw error
-        }
-      },
-      
       subscribeToFaqs: () => {
         try {
-          const supabase = getSupabaseClient()
-          const subscription = supabase
-            .channel("faqs-changes")
-            .on("postgres_changes", { event: "*", schema: "public", table: "faqs" }, async (payload) => {
-              try {
-                const { data, error } = await supabase
-                  .from("faqs")
-                  .select("*")
-                  .order("created_at", { ascending: false })
-                  
-                if (error) {
-                  console.error("Error fetching FAQs:", error)
-                  return
+            const channel = supabase.channel('faqs-public-subscription').on('postgres_changes', { event: '*', schema: 'public', table: 'faqs' },
+            async () => {
+                const { data, error } = await supabase.from("faqs").select("*").order("created_at", { ascending: false });
+                if (!error && data) {
+                    const transformed = data.map(faq => ({ ...faq, images: faq.images && typeof faq.images === 'string' ? JSON.parse(faq.images) : [] }));
+                    set({ faqs: transformed });
                 }
-                
-                // Garante que 'data' é um array antes de mapear
-                const transformedFaqs = Array.isArray(data) ? data.map((faq) => ({
-                  id: faq.id,
-                  title: faq.title,
-                  category: faq.category,
-                  description: faq.description,
-                  author: faq.author,
-                  images: faq.images ? JSON.parse(faq.images) : [],
-                })) : []; // Se não for array, usa array vazio
-                
-                set({ faqs: transformedFaqs })
-              } catch (err) {
-                console.error("Error in FAQ subscription callback:", err)
-              }
-            })
-            .subscribe()
-            
-          return () => {
-            try {
-              supabase.removeChannel(subscription)
-            } catch (err) {
-              console.error("Error removing FAQ subscription:", err)
-            }
-          }
+            }).subscribe();
+            return () => { supabase.removeChannel(channel); };
         } catch (error) {
-          console.error("Error setting up FAQ subscription:", error)
-          return () => {}
+            console.error("Error setting up faqs subscription:", error);
+            return () => {};
         }
       },
 
       // Autores
       autores: [],
       setAutores: (autores) => set({ autores }),
-      
-      addAutor: async (nome) => {
-        try {
-          const supabase = getSupabaseClient()
-          const { error } = await supabase.from("authors").insert({ name: nome })
-          if (error) throw error
-        } catch (error) {
-          console.error("Error in addAutor:", error)
-          throw error
-        }
-      },
-      
-      removeAutor: async (id) => {
-        try {
-          const supabase = getSupabaseClient()
-          const { error } = await supabase.from("authors").delete().eq("id", id)
-          if (error) throw error
-        } catch (error) {
-          console.error("Error in removeAutor:", error)
-          throw error
-        }
-      },
-      
       fetchAutores: async () => {
-        try {
-          const supabase = getSupabaseClient()
-          const { data, error } = await supabase
-            .from("authors")
-            .select("*")
-            .order("name", { ascending: true })
-            
-          if (error) throw error
-          
-          // Garante que 'data' é um array antes de mapear
-          const transformedAutores = Array.isArray(data) ? data.map((autor) => ({
-            id: autor.id,
-            name: autor.name,
-          })) : []; // Se não for array, usa array vazio
-          
-          set({ autores: transformedAutores })
-        } catch (error) {
-          console.error("Error in fetchAutores:", error)
-          throw error
-        }
+        const { data, error } = await supabase.from("authors").select("*").order("name");
+        if (error) throw error;
+        set({ autores: data || [] });
       },
-      
+      addAutor: async (nome) => {
+        const { error } = await supabase.from("authors").insert({ name: nome });
+        if (error) throw error;
+      },
+      removeAutor: async (id) => {
+        const { error } = await supabase.from("authors").delete().eq("id", id);
+        if (error) throw error;
+        set((state) => ({ autores: state.autores.filter((a) => a.id !== id) }));
+      },
       subscribeToAutores: () => {
         try {
-          const supabase = getSupabaseClient()
-          const subscription = supabase
-            .channel("authors-changes")
-            .on("postgres_changes", { event: "*", schema: "public", table: "authors" }, async () => {
-              try {
-                const { data, error } = await supabase
-                  .from("authors")
-                  .select("*")
-                  .order("name", { ascending: true })
-                  
-                if (error) {
-                  console.error("Error fetching authors:", error)
-                  return
-                }
-                
-                // Garante que 'data' é um array antes de mapear
-                const transformedAutores = Array.isArray(data) ? data.map((autor) => ({
-                  id: autor.id,
-                  name: autor.name,
-                })) : []; // Se não for array, usa array vazio
-                
-                set({ autores: transformedAutores })
-              } catch (err) {
-                console.error("Error in authors subscription callback:", err)
-              }
-            })
-            .subscribe()
-            
-          return () => {
-            try {
-              supabase.removeChannel(subscription)
-            } catch (err) {
-              console.error("Error removing authors subscription:", err)
-            }
-          }
+            const channel = supabase.channel('authors-public-subscription').on('postgres_changes', { event: '*', schema: 'public', table: 'authors' }, 
+            () => get().fetchAutores()
+            ).subscribe();
+            return () => { supabase.removeChannel(channel); };
         } catch (error) {
-          console.error("Error setting up authors subscription:", error)
-          return () => {}
+            console.error("Error setting up authors subscription:", error);
+            return () => {};
         }
       },
-
+      
       // Acessos
       acessos: [], 
       setAcessos: (acessos) => set({ acessos }),
-      
       addAcesso: async (acesso) => {
-        try {
-          const supabase = getSupabaseClient()
-          const { error } = await supabase.from("acessos").insert({
-            posto: acesso.posto,
-            maquina: acesso.maquina,
-            usuario: acesso.usuario,
-            senha: acesso.senha,
-            adquirente: acesso.adquirente || null, 
-            trabalho_andamento: acesso.trabalho_andamento || null, 
-            status_maquininha: acesso.status_maquininha || null, 
-          })
-          if (error) throw error
-        } catch (error) {
-          console.error("Error in addAcesso:", error)
-          throw error
-        }
+        const { error } = await supabase.from("acessos").insert(acesso);
+        if (error) throw error;
       },
-      
       updateAcesso: async (id, acesso) => {
-        try {
-          const supabase = getSupabaseClient()
-          const updateData: Partial<Acesso> = {}
-          
-          if (acesso.posto !== undefined) updateData.posto = acesso.posto
-          if (acesso.maquina !== undefined) updateData.maquina = acesso.maquina
-          if (acesso.usuario !== undefined) updateData.usuario = acesso.usuario
-          if (acesso.senha !== undefined) updateData.senha = acesso.senha
-          if (acesso.adquirente !== undefined) updateData.adquirente = acesso.adquirente
-          if (acesso.trabalho_andamento !== undefined) updateData.trabalho_andamento = acesso.trabalho_andamento
-          if (acesso.status_maquininha !== undefined) updateData.status_maquininha = acesso.status_maquininha
-          
-          const { error } = await supabase.from("acessos").update(updateData).eq("id", id)
-          if (error) throw error
-        } catch (error) {
-          console.error("Error in updateAcesso:", error)
-          throw error
-        }
+        const { error } = await supabase.from("acessos").update(acesso).eq("id", id);
+        if (error) throw error;
       },
-      
-      // A função deleteAcesso permanecerá aqui no store para tipagem,
-      // mas a chamada dela e o UI relacionado serão removidos do frontend temporariamente.
       deleteAcesso: async (id) => {
-        try {
-          const supabase = getSupabaseClient()
-          const { error } = await supabase.from("acessos").delete().eq("id", id)
-          if (error) throw error
-        } catch (error) {
-          console.error("Error in deleteAcesso:", error)
-          throw error
-        }
+        const { error } = await supabase.from("acessos").delete().eq("id", id);
+        if (error) throw error;
+        set((state) => ({
+          acessos: state.acessos.filter((acesso) => acesso.id !== id),
+        }));
       },
-      
       subscribeToAcessos: () => {
         try {
-          const supabase = getSupabaseClient()
-          const subscription = supabase
-            .channel("acessos-changes")
-            .on("postgres_changes", { event: "*", schema: "public", table: "acessos" }, async (payload) => {
-              try {
-                const { data, error } = await supabase
-                  .from("acessos")
-                  .select("*")
-                  .order("created_at", { ascending: false })
-                  
-                if (error) {
-                  console.error("Error fetching acessos (subscription):", error)
-                  return
-                }
-                
-                // Garante que 'data' é um array antes de mapear
-                const transformedAcessos = Array.isArray(data) ? data.map((acesso) => ({
-                  id: acesso.id,
-                  posto: acesso.posto,
-                  maquina: acesso.maquina,
-                  usuario: acesso.usuario,
-                  senha: acesso.senha,
-                  adquirente: acesso.adquirente || "",
-                  trabalho_andamento: acesso.trabalho_andamento || "",
-                  status_maquininha: acesso.status_maquininha || "",
-                  expandido: false, 
-                })) : []; // Se não for array, usa array vazio
-                
-                set({ acessos: transformedAcessos })
-              } catch (err) {
-                console.error("Error in acessos subscription callback:", err)
-              }
-            })
-            .subscribe()
-            
-          return () => {
-            try {
-              supabase.removeChannel(subscription)
-            } catch (err) {
-              console.error("Error removing acessos subscription:", err)
-            }
-          }
-        } catch (error) {
-          console.error("Error setting up acessos subscription:", error)
-          return () => {}
+            const channel = supabase.channel('acessos-public-subscription').on('postgres_changes', { event: '*', schema: 'public', table: 'acessos' },
+            async () => {
+                const { data, error } = await supabase.from("acessos").select("*").order("created_at", { ascending: false });
+                if (!error) set({ acessos: data.map(a => ({...a, expandido: false})) });
+            }).subscribe();
+            return () => { supabase.removeChannel(channel); };
+        } catch(error) {
+            console.error("Error setting up acessos subscription:", error);
+            return () => {};
         }
       },
 
       // Pendências
       pendencias: [],
       setPendencias: (pendencias) => set({ pendencias }),
-      
       addPendencia: async (pendencia) => {
-        try {
-          const supabase = getSupabaseClient()
-          const { error } = await supabase.from("pendencias").insert({
-            titulo: pendencia.titulo,
-            descricao: pendencia.descricao,
-            status: pendencia.status,
-            urgente: pendencia.urgente,
-            data: pendencia.data,
-            author: pendencia.author || null,
-          })
-          if (error) throw error
-        } catch (error) {
-          console.error("Error in addPendencia:", error)
-          throw error
-        }
+        const { error } = await supabase.from("pendencias").insert({ ...pendencia, status: 'nao-concluido' });
+        if (error) throw error;
       },
-      
       updatePendenciaStatus: async (id, status) => {
-        try {
-          const supabase = getSupabaseClient()
-          const { error } = await supabase.from("pendencias").update({ status }).eq("id", id)
-          if (error) throw error
-        } catch (error) {
-          console.error("Error in updatePendenciaStatus:", error)
-          throw error
-        }
+        const { error } = await supabase.from("pendencias").update({ status }).eq("id", id);
+        if (error) throw error;
       },
-      
       deletePendencia: async (id) => {
-        try {
-          const supabase = getSupabaseClient()
-          const { error } = await supabase.from("pendencias").delete().eq("id", id)
-          if (error) throw error
-        } catch (error) {
-          console.error("Error in deletePendencia:", error)
-          throw error
-        }
+        const { error } = await supabase.from("pendencias").delete().eq("id", id);
+        if (error) throw error;
+        set((state) => ({ pendencias: state.pendencias.filter((p) => p.id !== id) }));
       },
-      
       subscribeToPendencias: () => {
         try {
-          const supabase = getSupabaseClient()
-          const subscription = supabase
-            .channel("pendencias-changes")
-            .on("postgres_changes", { event: "*", schema: "public", table: "pendencias" }, async () => {
-              try {
-                const { data, error } = await supabase
-                  .from("pendencias")
-                  .select("*")
-                  .order("data", { ascending: false })
-                  
-                if (error) {
-                  console.error("Error fetching pendencias:", error)
-                  return
-                }
-                
-                set({ pendencias: data as Pendencia[] })
-              } catch (err) {
-                console.error("Error in pendencias subscription callback:", err)
+          const channel = supabase.channel('pendencias-public-subscription').on('postgres_changes', { event: '*', schema: 'public', table: 'pendencias' },
+            async () => {
+              const { data, error } = await supabase.from("pendencias").select("*").order("data", { ascending: false });
+              if (!error) {
+                set({ pendencias: data || [] });
               }
-            })
-            .subscribe()
-            
-          return () => {
-            try {
-              supabase.removeChannel(subscription)
-            } catch (err) {
-              console.error("Error removing pendencias subscription:", err)
             }
-          }
+          ).subscribe();
+          return () => { supabase.removeChannel(channel); };
         } catch (error) {
-          console.error("Error setting up pendencias subscription:", error)
-          return () => {}
+          console.error("Error setting up pendencias subscription:", error);
+          return () => {};
         }
       },
     }),
     {
       name: "e-prosys-storage",
-      partialize: (state) => {
-        const stateToPersist = { ...state }
-        delete (stateToPersist as any).theme
-        delete (stateToPersist as any).setTheme
-        if (stateToPersist.faqs) {
-          stateToPersist.faqs = stateToPersist.faqs.map((faq) => {
-            const { images, ...restOfFaq } = faq
-            return restOfFaq
-          })
-        }
-        return stateToPersist
-      },
-    },
-  ),
-)
-
-// Hooks individuais para compatibilidade
-export const useAutores = () => useAppStore((state) => state.autores)
-export const useFaqs = () => useAppStore((state) => state.faqs)
-export const useAcessos = () => useAppStore((state) => state.acessos)
-export const usePendencias = () => useAppStore((state) => state.pendencias)
-
-// Hook para ações de FAQ (caso seja necessário)
-export const useFaqActions = () => useAppStore((state) => ({
-  addFaq: state.addFaq,
-  updateFaq: state.updateFaq,
-  deleteFaq: state.deleteFaq,
-  getFaqById: state.getFaqById,
-  getFaqsByCategory: state.getFaqsByCategory,
-  addImageToFaq: state.addImageToFaq,
-}))
+      partialize: (state) => ({
+        theme: state.theme,
+      }),
+    }
+  )
+);

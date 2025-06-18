@@ -1,68 +1,77 @@
-import { createClient } from "@supabase/supabase-js"
+import { createClient } from "@supabase/supabase-js";
 
-// Types for our database tables
+// ============================================================================
+// TIPOS DO BANCO DE DADOS (DATABASE TYPES)
+// Manter os tipos aqui ajuda a garantir que os dados do seu app
+// estão consistentes com a estrutura do seu banco.
+// ============================================================================
+
 export type FAQ = {
-  id: number
-  title: string
-  category: string
-  description: string
-  author?: string
-  images?: any[]
-  created_at: string
-}
+  id: number;
+  title: string;
+  category: string;
+  description: string;
+  author?: string;
+  images?: any[];
+  created_at: string;
+};
 
 export type Pendencia = {
-  id: number
-  titulo: string
-  descricao: string
-  status: "nao-concluido" | "em-andamento" | "concluido"
-  urgente: boolean
-  data: string
-  author?: string
-}
+  id: number;
+  titulo: string;
+  descricao: string;
+  status: "nao-concluido" | "em-andamento" | "concluido";
+  urgente: boolean;
+  data: string;
+  author?: string;
+};
 
-// Atualizar a interface Acesso para remover adquirente
 export type Acesso = {
-  id: number
-  posto: string
-  maquina: string
-  usuario: string
-  senha: string
-  adquirente?: string; // Adicionado de volta, pois é usado no componente e no banco
-  trabalho_andamento?: string; // Alterado para opcional
-  status_maquininha?: string; // Alterado para opcional
-  expandido?: boolean; // Adicionado para o controle de expansão da linha na tabela
-  created_at?: string; // Adicionado para consistência se necessário para ordenação
-}
+  id: number;
+  posto: string;
+  maquina: string;
+  usuario: string;
+  senha: string;
+  adquirente?: string;
+  trabalho_andamento?: string;
+  status_maquininha?: string;
+  expandido?: boolean;
+  created_at?: string;
+};
 
 export type Author = {
-  id: number
-  name: string
-  created_at: string
+  id: number;
+  name: string;
+  created_at: string;
+};
+
+// ============================================================================
+// CRIAÇÃO DO CLIENTE SUPABASE (CLIENT-SIDE)
+// ============================================================================
+
+// Pega as variáveis de ambiente.
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+// Verifica se as variáveis de ambiente foram definidas no seu arquivo .env.local.
+// Se não, lança um erro claro, o que facilita MUITO a depuração.
+if (!supabaseUrl) {
+  throw new Error(
+    "ERRO CRÍTICO: A variável de ambiente NEXT_PUBLIC_SUPABASE_URL não está definida. Verifique seu arquivo .env.local"
+  );
 }
 
-// Create a single supabase client for the browser
-const createSupabaseClient = () => {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL as string
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string
-
-  return createClient(supabaseUrl, supabaseAnonKey)
+if (!supabaseAnonKey) {
+  throw new Error(
+    "ERRO CRÍTICO: A variável de ambiente NEXT_PUBLIC_SUPABASE_ANON_KEY não está definida. Verifique seu arquivo .env.local"
+  );
 }
 
-// Create a singleton instance of the Supabase client
-let supabaseInstance: ReturnType<typeof createSupabaseClient> | null = null
+// Cria e exporta uma ÚNICA instância do cliente Supabase para ser usada
+// em todo o lado do cliente (no navegador).
+// Esta é a maneira moderna e recomendada.
+export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-export const getSupabaseClient = () => {
-  if (!supabaseInstance) {
-    supabaseInstance = createSupabaseClient()
-  }
-  return supabaseInstance
-}
-
-// Create a server-side Supabase client
-export const createServerSupabaseClient = () => {
-  const supabaseUrl = process.env.SUPABASE_URL as string
-  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY as string
-
-  return createClient(supabaseUrl, supabaseServiceKey)
-}
+// NOTA: O seu código anterior tinha uma versão para o servidor (createServerSupabaseClient).
+// Isso é útil para Server Actions ou API Routes, mas não é a causa do seu erro atual
+// no lado do cliente. Mantive o arquivo focado em resolver o problema do navegador.
