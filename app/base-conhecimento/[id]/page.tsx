@@ -8,7 +8,7 @@ export const revalidate = 60 // Opcional: Revalida a página a cada 60 segundos
 export async function generateStaticParams() {
   try {
     const { data: faqs } = await supabase.from('faqs').select('id');
-    return faqs?.map(({ id }) => ({ id })) || [];
+    return faqs?.map(({ id }) => ({ id: id.toString() })) || [];
   } catch (error) {
     console.error("Failed to generate static params:", error);
     return [];
