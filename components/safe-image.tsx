@@ -1,63 +1,58 @@
 "use client"
 
-import { useState, useEffect } from 'react'
-import Image from 'next/image'
+import React, { useState, useCallback } from "react"
 
-interface SafeImageProps {
+interface SafeImageProps extends React.ImgHTMLAttributes<HTMLImageElement> {
   src: string
   alt: string
-  width?: number
-  height?: number
-  className?: string
-  fill?: boolean
+  fallbackSrc?: string
+  onError?: (event: React.SyntheticEvent<HTMLImageElement>) => void
 }
 
-export const SafeImage = ({ src, alt, width, height, className, fill }: SafeImageProps) => {
-  const [imageSrc, setImageSrc] = useState(src)
+export function SafeImage({
+  src,
+  alt,
+  fallbackSrc = "/placeholder.svg",
+  onError,
+  className,
+  ...props
+}: SafeImageProps) {
+  const [currentSrc, setCurrentSrc] = useState(src)
   const [hasError, setHasError] = useState(false)
 
-  useEffect(() => {
-    // Reset error state when src changes
-    setHasError(false)
-    setImageSrc(src)
+  const handleError = useCallback(
+    (event: React.SyntheticEvent<HTMLImageElement>) => {
+      if (!hasError && currentSrc !== fallbackSrc) {
+        console.warn("Erro ao carregar imagem:", currentSrc)
+        setCurrentSrc(fallbackSrc)
+        setHasError(true)
+      }
 
-    // Se for uma URL blob, verificar se ainda é válida
-    if (src.startsWith('blob:')) {
-      fetch(src, { method: 'HEAD' })
-        .catch(() => {
-          console.warn('URL blob inválida:', src)
-          setImageSrc('/placeholder.svg')
-          setHasError(true)
-        })
+      // Chama o handler personalizado se fornecido
+      if (onError) {
+        onError(event)
+      }
+    },
+    [currentSrc, fallbackSrc, hasError, onError],
+  )
+
+  // Atualiza a imagem quando a prop src muda
+  React.useEffect(() => {
+    if (src !== currentSrc && !hasError) {
+      setCurrentSrc(src)
     }
-  }, [src])
-
-  const handleError = () => {
-    console.warn('Erro ao carregar imagem:', imageSrc)
-    setImageSrc('/placeholder.svg')
-    setHasError(true)
-  }
-
-  if (fill) {
-    return (
-      <Image
-        src={imageSrc}
-        alt={hasError ? 'Imagem não disponível' : alt}
-        fill
-        className={className}
-        onError={handleError}
-      />
-    )
-  }
+  }, [src, currentSrc, hasError])
 
   return (
-    <Image
-      src={imageSrc}
-      alt={hasError ? 'Imagem não disponível' : alt}
-      width={width || 100}
-      height={height || 100}
+    <img
+      {...props}
+      src={currentSrc || "/placeholder.svg"}
+      alt={alt}
       className={className}
       onError={handleError}
+      loading="lazy"
     />
   )
 }
+
+export default SafeImage

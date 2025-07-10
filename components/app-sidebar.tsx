@@ -15,6 +15,7 @@ import {
   Home,
   X,
   Lock,
+  Menu,
 } from "lucide-react";
 import { ModeToggle } from "@/components/mode-toggle";
 import { Separator } from "@/components/ui/separator";
@@ -216,7 +217,9 @@ const SidebarFooter = ({ open }: { open: boolean }) => {
             >
               <div className="flex items-center justify-between mb-4">
                   <span className="text-xs text-gray-500">E-PROSYS v2.0.0</span>
-                  <ModeToggle />
+                  <div onMouseEnter={(e) => e.stopPropagation()}>
+                    <ModeToggle />
+                  </div>
               </div>
               <Separator className="mb-4" />
               <div className="flex items-center gap-3 p-2 bg-blue-50 dark:bg-blue-900/50 rounded-lg">

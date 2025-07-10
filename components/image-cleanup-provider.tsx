@@ -1,7 +1,9 @@
 "use client"
 
-import { useEffect } from 'react'
-import { usePathname } from 'next/navigation'
+import type React from "react"
+
+import { useEffect } from "react"
+import { usePathname } from "next/navigation"
 
 export const ImageCleanupProvider = ({ children }: { children: React.ReactNode }) => {
   const pathname = usePathname()
@@ -11,18 +13,17 @@ export const ImageCleanupProvider = ({ children }: { children: React.ReactNode }
     const cleanupBlobUrls = () => {
       // Encontrar todas as imagens com URLs blob
       const images = document.querySelectorAll('img[src^="blob:"]')
-      
+
       images.forEach((img) => {
         const imgElement = img as HTMLImageElement
         const blobUrl = imgElement.src
-        
+
         // Verificar se a URL blob ainda é válida
-        fetch(blobUrl, { method: 'HEAD' })
-          .catch(() => {
-            // Se falhar, substituir por placeholder
-            console.warn('URL blob inválida detectada:', blobUrl)
-            imgElement.src = '/placeholder.svg'
-          })
+        fetch(blobUrl, { method: "HEAD" }).catch(() => {
+          // Se falhar, substituir por placeholder
+          console.warn("URL blob inválida detectada:", blobUrl)
+          imgElement.src = "/placeholder.svg"
+        })
       })
     }
 
@@ -34,3 +35,5 @@ export const ImageCleanupProvider = ({ children }: { children: React.ReactNode }
 
   return <>{children}</>
 }
+
+export default ImageCleanupProvider

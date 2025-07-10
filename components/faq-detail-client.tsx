@@ -1,14 +1,16 @@
-'use client'
+"use client"
 
-import React, { useState, useRef, useEffect } from 'react'
-import { type FAQ } from '@/lib/supabase'
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { ArrowLeft, ZoomIn, BookOpen, Plus, Minus } from 'lucide-react'
-import { useRouter } from 'next/navigation'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { ImageZoomModal } from './image-zoom-modal'
-import { SafeImage } from './safe-image'
+import type React from "react"
+import { useState, useRef } from "react"
+import type { FAQ } from "@/lib/supabase"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { ArrowLeft, ZoomIn, BookOpen, Plus, Minus } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { ImageZoomModal } from "./image-zoom-modal"
+import { SafeImage } from "./safe-image"
+import { TextWithLinks } from "@/lib/text-utils"
 
 // Interface para compatibilidade com o formato de imagens usado no ImageUpload
 interface ImageWithMetadata {
@@ -28,23 +30,23 @@ export default function FaqDetailClient({ faq }: { faq: FAQ }) {
   // Função para processar as imagens de forma segura
   const processImages = () => {
     if (!faq.images) return []
-    
+
     // Se for uma string JSON, faz o parse
-    if (typeof faq.images === 'string') {
+    if (typeof faq.images === "string") {
       try {
         const parsed = JSON.parse(faq.images)
         return Array.isArray(parsed) ? parsed : []
       } catch (e) {
-        console.error('Erro ao fazer parse das imagens:', e)
+        console.error("Erro ao fazer parse das imagens:", e)
         return []
       }
     }
-    
+
     // Se já for um array, retorna diretamente
     if (Array.isArray(faq.images)) {
       return faq.images
     }
-    
+
     return []
   }
 
@@ -52,72 +54,71 @@ export default function FaqDetailClient({ faq }: { faq: FAQ }) {
 
   // Função para lidar com o clique no zoom
   const handleZoomClick = (imageUrl: string) => {
-    console.log('URL da imagem para zoom:', imageUrl) // Debug
+    console.log("URL da imagem para zoom:", imageUrl) // Debug
     setZoomImage(imageUrl)
     // Reset zoom level when opening a new image
     setZoomLevel(2)
     // Reset cursor position to center
     if (zoomContainerRef.current) {
-      const rect = zoomContainerRef.current.getBoundingClientRect();
+      const rect = zoomContainerRef.current.getBoundingClientRect()
       setMousePosition({
         x: rect.width / 2,
         y: rect.height / 2,
-      });
+      })
     }
   }
 
   // Track mouse position over the zoomed image
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!zoomContainerRef.current) return;
-    
-    const rect = zoomContainerRef.current.getBoundingClientRect();
+    if (!zoomContainerRef.current) return
+
+    const rect = zoomContainerRef.current.getBoundingClientRect()
     // Calculate mouse position relative to container
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    
-    setMousePosition({ x, y });
-  };
+    const x = e.clientX - rect.left
+    const y = e.clientY - rect.top
+
+    setMousePosition({ x, y })
+  }
 
   // Adjust zoom in/out with buttons or scroll wheel
   const adjustZoom = (amount: number) => {
     setZoomLevel((prev) => {
-      const newZoom = prev + amount;
+      const newZoom = prev + amount
       // Limit zoom range between 1 and 8
-      return Math.min(Math.max(newZoom, 1), 8);
-    });
-  };
+      return Math.min(Math.max(newZoom, 1), 8)
+    })
+  }
 
   // Handle wheel event for zooming
   const handleWheel = (e: React.WheelEvent) => {
-    e.preventDefault();
-    const delta = e.deltaY > 0 ? -0.5 : 0.5;
-    adjustZoom(delta);
-  };
+    e.preventDefault()
+    const delta = e.deltaY > 0 ? -0.5 : 0.5
+    adjustZoom(delta)
+  }
 
   // Calculate transform values for the zoomed image
   const getImageTransform = () => {
     if (!zoomContainerRef.current || !imageRef.current) {
-      return { transform: 'translate(0, 0) scale(1)' };
+      return { transform: "translate(0, 0) scale(1)" }
     }
+    const containerRect = zoomContainerRef.current.getBoundingClientRect()
+    const containerWidth = containerRect.width
+    const containerHeight = containerRect.height
 
-    const containerRect = zoomContainerRef.current.getBoundingClientRect();
-    const containerWidth = containerRect.width;
-    const containerHeight = containerRect.height;
-    
     // Calculate the percentage of cursor position within the container
-    const xPercent = mousePosition.x / containerWidth;
-    const yPercent = mousePosition.y / containerHeight;
-    
+    const xPercent = mousePosition.x / containerWidth
+    const yPercent = mousePosition.y / containerHeight
+
     // Calculate translation based on cursor position and zoom level
     // As zoom increases, we need more translation to keep the point under cursor
-    const translateX = (0.5 - xPercent) * containerWidth * (zoomLevel - 1) / zoomLevel;
-    const translateY = (0.5 - yPercent) * containerHeight * (zoomLevel - 1) / zoomLevel;
-    
+    const translateX = ((0.5 - xPercent) * containerWidth * (zoomLevel - 1)) / zoomLevel
+    const translateY = ((0.5 - yPercent) * containerHeight * (zoomLevel - 1)) / zoomLevel
+
     return {
       transform: `translate(${translateX}px, ${translateY}px) scale(${zoomLevel})`,
-      transition: 'transform 0.05s ease-out',
-    };
-  };
+      transition: "transform 0.05s ease-out",
+    }
+  }
 
   return (
     <>
@@ -132,21 +133,23 @@ export default function FaqDetailClient({ faq }: { faq: FAQ }) {
         <CardHeader>
           <div className="flex items-center gap-2 mb-2">
             <BookOpen className="h-5 w-5 text-primary" />
-            <CardTitle className="text-2xl font-bold">{faq.title || 'Título não disponível'}</CardTitle>
+            <CardTitle className="text-2xl font-bold">{faq.title || "Título não disponível"}</CardTitle>
           </div>
           <CardDescription>
             <Badge variant="secondary" className="text-sm">
-              {faq.category || 'Categoria não definida'}
+              {faq.category || "Categoria não definida"}
             </Badge>
           </CardDescription>
         </CardHeader>
+
         <CardContent className="flex-1 space-y-6">
           <div>
             <h3 className="text-lg font-semibold mb-3 text-gray-800 dark:text-gray-200">Descrição</h3>
             <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4">
-              <p className="text-gray-700 dark:text-gray-300 whitespace-pre-line leading-relaxed">
-                {faq.description || 'Descrição não disponível.'}
-              </p>
+              <TextWithLinks
+                text={faq.description || "Descrição não disponível."}
+                className="text-gray-700 dark:text-gray-300 leading-relaxed"
+              />
             </div>
           </div>
 
@@ -163,17 +166,17 @@ export default function FaqDetailClient({ faq }: { faq: FAQ }) {
                   let imageTitle: string
                   let imageDescription: string
 
-                  if (typeof image === 'string') {
+                  if (typeof image === "string") {
                     // Formato antigo: apenas URL
                     imageUrl = image
                     imageTitle = `Imagem ${index + 1}`
-                    imageDescription = ''
-                  } else if (image && typeof image === 'object') {
+                    imageDescription = ""
+                  } else if (image && typeof image === "object") {
                     // Formato novo: objeto com metadados
                     const imgObj = image as ImageWithMetadata
-                    imageUrl = imgObj.src || (image as any).url || ''
+                    imageUrl = imgObj.src || (image as any).url || ""
                     imageTitle = imgObj.title || `Imagem ${index + 1}`
-                    imageDescription = imgObj.description || ''
+                    imageDescription = imgObj.description || ""
                   } else {
                     return null
                   }
@@ -186,7 +189,10 @@ export default function FaqDetailClient({ faq }: { faq: FAQ }) {
                   console.log(`Imagem ${index} processada:`, { imageUrl, imageTitle, imageDescription }) // Debug
 
                   return (
-                    <div key={index} className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm hover:shadow-md transition-shadow">
+                    <div
+                      key={index}
+                      className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm hover:shadow-md transition-shadow"
+                    >
                       <div className="flex gap-4 p-4">
                         {/* Imagem com botão de zoom */}
                         <div className="relative flex-shrink-0">
@@ -210,19 +216,13 @@ export default function FaqDetailClient({ faq }: { faq: FAQ }) {
                         <div className="flex-1 min-w-0">
                           <div className="space-y-2">
                             <div>
-                              <h4 className="text-base font-semibold text-gray-900 dark:text-gray-100">
-                                Título
-                              </h4>
-                              <p className="text-gray-700 dark:text-gray-300 break-words">
-                                {imageTitle}
-                              </p>
+                              <h4 className="text-base font-semibold text-gray-900 dark:text-gray-100">Título</h4>
+                              <p className="text-gray-700 dark:text-gray-300 break-words">{imageTitle}</p>
                             </div>
-                            
+
                             {imageDescription && (
                               <div>
-                                <h4 className="text-base font-semibold text-gray-900 dark:text-gray-100">
-                                  Descrição
-                                </h4>
+                                <h4 className="text-base font-semibold text-gray-900 dark:text-gray-100">Descrição</h4>
                                 <p className="text-gray-700 dark:text-gray-300 break-words leading-relaxed">
                                   {imageDescription}
                                 </p>
@@ -241,9 +241,7 @@ export default function FaqDetailClient({ faq }: { faq: FAQ }) {
           <div>
             <h3 className="text-lg font-semibold mb-3 text-gray-800 dark:text-gray-200">Autor</h3>
             <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3">
-              <p className="text-gray-700 dark:text-gray-300 font-medium">
-                {faq.author || 'Autor não informado'}
-              </p>
+              <p className="text-gray-700 dark:text-gray-300 font-medium">{faq.author || "Autor não informado"}</p>
             </div>
           </div>
 
@@ -253,12 +251,12 @@ export default function FaqDetailClient({ faq }: { faq: FAQ }) {
               <h3 className="text-lg font-semibold mb-3 text-gray-800 dark:text-gray-200">Data de Criação</h3>
               <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3">
                 <p className="text-gray-700 dark:text-gray-300">
-                  {new Date(faq.created_at).toLocaleDateString('pt-BR', {
-                    year: 'numeric',
-                    month: 'long',
-                    day: 'numeric',
-                    hour: '2-digit',
-                    minute: '2-digit'
+                  {new Date(faq.created_at).toLocaleDateString("pt-BR", {
+                    year: "numeric",
+                    month: "long",
+                    day: "numeric",
+                    hour: "2-digit",
+                    minute: "2-digit",
                   })}
                 </p>
               </div>
@@ -269,12 +267,12 @@ export default function FaqDetailClient({ faq }: { faq: FAQ }) {
 
       {/* Modal de zoom avançado com seguimento do cursor */}
       {zoomImage && (
-        <div 
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80" 
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80"
           onClick={() => setZoomImage(null)}
         >
-          <div 
-            ref={zoomContainerRef} 
+          <div
+            ref={zoomContainerRef}
             className="relative max-w-4xl max-h-[90vh] w-full h-full overflow-hidden cursor-zoom-in"
             onMouseMove={handleMouseMove}
             onClick={(e) => e.stopPropagation()} // Prevent closing when clicking inside container
@@ -283,15 +281,15 @@ export default function FaqDetailClient({ faq }: { faq: FAQ }) {
             <div className="absolute inset-0 flex items-center justify-center overflow-hidden">
               <img
                 ref={imageRef}
-                src={zoomImage}
+                src={zoomImage || "/placeholder.svg"}
                 alt="Imagem ampliada"
                 className="max-w-full max-h-full object-contain"
                 style={getImageTransform()}
-                onLoad={() => console.log('Imagem carregada com sucesso no zoom:', zoomImage)}
-                onError={(e) => console.error('Erro ao carregar imagem no zoom:', zoomImage, e)}
+                onLoad={() => console.log("Imagem carregada com sucesso no zoom:", zoomImage)}
+                onError={(e) => console.error("Erro ao carregar imagem no zoom:", zoomImage, e)}
               />
             </div>
-            
+
             <div className="absolute top-4 right-4 flex flex-col bg-black/40 rounded-lg p-1 space-y-2">
               <Button
                 variant="secondary"
@@ -302,11 +300,9 @@ export default function FaqDetailClient({ faq }: { faq: FAQ }) {
                 <Plus className="h-4 w-4" />
                 <span className="sr-only">Aumentar zoom</span>
               </Button>
-              
-              <div className="text-white text-center text-xs bg-black/60 px-2 py-1 rounded">
-                {(zoomLevel * 50)}%
-              </div>
-              
+
+              <div className="text-white text-center text-xs bg-black/60 px-2 py-1 rounded">{zoomLevel * 50}%</div>
+
               <Button
                 variant="secondary"
                 size="icon"
@@ -317,7 +313,7 @@ export default function FaqDetailClient({ faq }: { faq: FAQ }) {
                 <span className="sr-only">Diminuir zoom</span>
               </Button>
             </div>
-            
+
             <Button
               variant="secondary"
               size="icon"
@@ -327,7 +323,7 @@ export default function FaqDetailClient({ faq }: { faq: FAQ }) {
               <ArrowLeft className="h-4 w-4" />
               <span className="sr-only">Fechar zoom</span>
             </Button>
-            
+
             <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 text-sm text-white/80 bg-black/40 px-3 py-1 rounded-full">
               Utilize a roda do mouse para ajustar o zoom ou os botões + e -
             </div>

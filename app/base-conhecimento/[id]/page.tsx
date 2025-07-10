@@ -1,17 +1,17 @@
-import { supabase } from '@/lib/supabase'
-import FaqDetailClient from '@/components/faq-detail-client' // Corrigido: importação padrão
-import { notFound } from 'next/navigation'
+import { supabase } from "@/lib/supabase"
+import FaqDetailClient from "@/components/faq-detail-client"
+import { notFound } from "next/navigation"
 
-export const revalidate = 60 // Opcional: Revalida a página a cada 60 segundos
+export const revalidate = 60
 
 // Gera os parâmetros estáticos para as páginas de FAQ
 export async function generateStaticParams() {
   try {
-    const { data: faqs } = await supabase.from('faqs').select('id');
-    return faqs?.map(({ id }) => ({ id: id.toString() })) || [];
+    const { data: faqs } = await supabase.from("faqs").select("id")
+    return faqs?.map(({ id }) => ({ id: id.toString() })) || []
   } catch (error) {
-    console.error("Failed to generate static params:", error);
-    return [];
+    console.error("Failed to generate static params:", error)
+    return []
   }
 }
 
@@ -21,11 +21,7 @@ export default async function FaqDetailPage({
 }: {
   params: { id: string }
 }) {
-  const { data: faq, error } = await supabase
-    .from('faqs')
-    .select('*')
-    .eq('id', params.id)
-    .single()
+  const { data: faq, error } = await supabase.from("faqs").select("*").eq("id", params.id).single()
 
   // Se houver um erro ou o faq não for encontrado, mostra a página 404
   if (error || !faq) {

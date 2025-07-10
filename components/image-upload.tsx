@@ -18,60 +18,59 @@ export interface ImageWithMetadata {
 interface ImageUploadProps {
   onImagesSelected: (images: ImageWithMetadata[]) => void
   maxImages?: number
-  initialImages?: ImageWithMetadata[] | string;
+  initialImages?: ImageWithMetadata[] | string
 }
 
 // A exportação continua nomeada para corresponder à forma como é importada na sua página.
 export function ImageUpload({ onImagesSelected, maxImages = 5, initialImages = [] }: ImageUploadProps) {
-  
   // Função segura para inicializar o estado, tratando tanto arrays como strings JSON
   const getInitialState = useCallback(() => {
     // Se initialImages for uma string (vindo do banco de dados ao editar), tenta fazer o parse.
-    if (typeof initialImages === 'string') {
+    if (typeof initialImages === "string") {
       try {
-        const parsed = JSON.parse(initialImages);
+        const parsed = JSON.parse(initialImages)
         // Garante que o resultado do parse é um array antes de o usar.
-        return Array.isArray(parsed) ? parsed : [];
+        return Array.isArray(parsed) ? parsed : []
       } catch (e) {
-        console.error("Falha ao fazer parse do JSON de imagens:", e);
-        return []; // Retorna um array vazio em caso de erro para não quebrar a aplicação.
+        console.error("Falha ao fazer parse do JSON de imagens:", e)
+        return [] // Retorna um array vazio em caso de erro para não quebrar a aplicação.
       }
     }
     // Se já for um array (ao adicionar um novo item) ou qualquer outro tipo, garante que retorna um array.
-    return Array.isArray(initialImages) ? initialImages : [];
-  }, [initialImages]);
+    return Array.isArray(initialImages) ? initialImages : []
+  }, [initialImages])
 
-  const [previewImages, setPreviewImages] = useState<ImageWithMetadata[]>(getInitialState);
+  const [previewImages, setPreviewImages] = useState<ImageWithMetadata[]>(getInitialState)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Sincroniza o estado se a prop `initialImages` mudar (crucial para o modo de edição)
   useEffect(() => {
-    setPreviewImages(getInitialState());
-  }, [getInitialState]);
+    setPreviewImages(getInitialState())
+  }, [getInitialState])
 
   // Notifica o componente pai sempre que a lista de imagens for alterada
   useEffect(() => {
     // Garante que onImagesSelected é uma função antes de a chamar
-    if (typeof onImagesSelected === 'function') {
-      onImagesSelected(previewImages);
+    if (typeof onImagesSelected === "function") {
+      onImagesSelected(previewImages)
     }
   }, [previewImages, onImagesSelected])
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
-    if (!files) return;
+    if (!files) return
 
     const remainingSlots = maxImages - previewImages.length
-    if (remainingSlots <= 0) return;
+    if (remainingSlots <= 0) return
 
     const filesToProcess = Array.from(files).slice(0, remainingSlots)
-    
+
     filesToProcess.forEach((file) => {
       const reader = new FileReader()
       reader.onload = (event) => {
         if (event.target?.result) {
-          const newImage = { src: event.target.result as string, title: "", description: "" };
-          setPreviewImages((prev) => [...prev, newImage]);
+          const newImage = { src: event.target.result as string, title: "", description: "" }
+          setPreviewImages((prev) => [...prev, newImage])
         }
       }
       reader.readAsDataURL(file)
@@ -87,9 +86,7 @@ export function ImageUpload({ onImagesSelected, maxImages = 5, initialImages = [
   }
 
   const updateImageMetadata = (index: number, field: keyof ImageWithMetadata, value: string) => {
-    setPreviewImages((prev) =>
-      prev.map((img, i) => (i === index ? { ...img, [field]: value } : img))
-    )
+    setPreviewImages((prev) => prev.map((img, i) => (i === index ? { ...img, [field]: value } : img)))
   }
 
   return (
@@ -111,14 +108,7 @@ export function ImageUpload({ onImagesSelected, maxImages = 5, initialImages = [
         </span>
       </div>
 
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/*"
-        multiple
-        onChange={handleFileChange}
-        className="hidden"
-      />
+      <input ref={fileInputRef} type="file" accept="image/*" multiple onChange={handleFileChange} className="hidden" />
 
       {previewImages.length > 0 && (
         <div className="space-y-4">
@@ -128,7 +118,7 @@ export function ImageUpload({ onImagesSelected, maxImages = 5, initialImages = [
                 <div className="flex gap-4">
                   <div className="relative flex-shrink-0">
                     <img
-                      src={image.src}
+                      src={image.src || "/placeholder.svg"}
                       alt={image.title || `Imagem ${index + 1}`}
                       className="h-24 w-24 rounded-lg object-cover"
                     />
@@ -144,12 +134,29 @@ export function ImageUpload({ onImagesSelected, maxImages = 5, initialImages = [
                   </div>
                   <div className="flex-1 space-y-3">
                     <div>
-                      <Label htmlFor={`image-title-${index}`} className="text-sm font-medium">Título da imagem</Label>
-                      <Input id={`image-title-${index}`} placeholder="Adicione um título" value={image.title} onChange={(e) => updateImageMetadata(index, "title", e.target.value)} className="mt-1" />
+                      <Label htmlFor={`image-title-${index}`} className="text-sm font-medium">
+                        Título da imagem
+                      </Label>
+                      <Input
+                        id={`image-title-${index}`}
+                        placeholder="Adicione um título"
+                        value={image.title}
+                        onChange={(e) => updateImageMetadata(index, "title", e.target.value)}
+                        className="mt-1"
+                      />
                     </div>
                     <div>
-                      <Label htmlFor={`image-description-${index}`} className="text-sm font-medium">Descrição da imagem</Label>
-                      <Textarea id={`image-description-${index}`} placeholder="Adicione uma descrição" value={image.description} onChange={(e) => updateImageMetadata(index, "description", e.target.value)} className="mt-1 resize-none" rows={2} />
+                      <Label htmlFor={`image-description-${index}`} className="text-sm font-medium">
+                        Descrição da imagem
+                      </Label>
+                      <Textarea
+                        id={`image-description-${index}`}
+                        placeholder="Adicione uma descrição"
+                        value={image.description}
+                        onChange={(e) => updateImageMetadata(index, "description", e.target.value)}
+                        className="mt-1 resize-none"
+                        rows={2}
+                      />
                     </div>
                   </div>
                 </div>
