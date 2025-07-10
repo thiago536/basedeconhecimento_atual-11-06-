@@ -1,30 +1,36 @@
 "use client"
 
-import { useCallback, useRef } from "react"
+import { useCallback } from "react"
 
 export function useAudioFeedback() {
-  const audioRef = useRef<HTMLAudioElement | null>(null)
-
   const playSuccessSound = useCallback(() => {
     try {
-      // Create audio element if it doesn't exist
-      if (!audioRef.current) {
-        audioRef.current = new Audio("https://hebbkx1anhila5yf.public.blob.vercel-storage.com/level-up-191997-0Qb24ovamJQ2Sc9ZkAHuapxZb1POY5.mp3")
-        audioRef.current.volume = 0.3 // Set volume to 30% to be non-intrusive
-        audioRef.current.preload = "auto"
-      }
-
-      // Reset audio to beginning and play
-      audioRef.current.currentTime = 0
-      audioRef.current.play().catch((error) => {
+      const audio = new Audio("https://hebbkx1anhila5yf.public.blob.vercel-storage.com/level-up-191997-0Qb24ovamJQ2Sc9ZkAHuapxZb1POY5.mp3")
+      audio.volume = 0.3 // 30% volume for non-intrusive feedback
+      audio.play().catch((error) => {
         // Silently handle audio play errors (e.g., user hasn't interacted with page yet)
-        console.debug("Audio feedback could not be played:", error)
+        console.debug("Audio play failed:", error)
       })
     } catch (error) {
-      // Silently handle any audio-related errors
-      console.debug("Audio feedback error:", error)
+      // Silently handle audio creation errors
+      console.debug("Audio creation failed:", error)
     }
   }, [])
 
-  return { playSuccessSound }
+  const playNotificationSound = useCallback(() => {
+    try {
+      const audio = new Audio("https://hebbkx1anhila5yf.public.blob.vercel-storage.com/0fu1am3mk2fk-timer-sfx-5-LhP27Uvg2MgncyK2TQ7sg7YgaY3UJZ.mp3")
+      audio.volume = 0.5 // 50% volume for notifications
+      audio.play().catch((error) => {
+        console.debug("Notification audio play failed:", error)
+      })
+    } catch (error) {
+      console.debug("Notification audio creation failed:", error)
+    }
+  }, [])
+
+  return {
+    playSuccessSound,
+    playNotificationSound,
+  }
 }

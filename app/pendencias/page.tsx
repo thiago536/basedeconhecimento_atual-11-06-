@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { useAppStore } from "@/lib/store"
-import { supabase, type Pendencia, type Autor } from "@/lib/supabase"
+import { supabase, type Pendencia, type Author } from "@/lib/supabase"
 import { useToast } from "@/components/ui/use-toast"
 import { useAudioFeedback } from "@/hooks/use-audio-feedback"
 import {
@@ -42,7 +42,7 @@ function PendenciaForm({
   isLoadingAuthors,
 }: {
   pendencia: Partial<Omit<Pendencia, "id" | "status">>
-  autores: Autor[]
+  autores: Author[]
   onSave: (pendencia: Partial<Pendencia>) => void
   onCancel: () => void
   isLoading: boolean
@@ -146,6 +146,7 @@ export default function PendenciasPage() {
     fetchAutores,
     subscribeToAutores,
   } = useAppStore()
+
   const [searchTerm, setSearchTerm] = useState("")
   const [loading, setLoading] = useState(true)
   const [isLoadingAuthors, setIsLoadingAuthors] = useState(true)
@@ -154,6 +155,7 @@ export default function PendenciasPage() {
   const [showFormDialog, setShowFormDialog] = useState(false)
   const [pendenciaEmEdicao, setPendenciaEmEdicao] = useState<Partial<Pendencia> | null>(null)
   const [pendenciaParaRemover, setPendenciaParaRemover] = useState<Pendencia | null>(null)
+
   const { toast } = useToast()
   const { playSuccessSound } = useAudioFeedback()
 
@@ -235,6 +237,7 @@ export default function PendenciasPage() {
 
   const handleConfirmarRemocao = async () => {
     if (!pendenciaParaRemover) return
+
     setProcessingId(pendenciaParaRemover.id)
     try {
       await deletePendencia(pendenciaParaRemover.id)

@@ -114,6 +114,7 @@ export default function AcessosPage() {
   const [showFormDialog, setShowFormDialog] = useState(false)
   const [acessoEmEdicao, setAcessoEmEdicao] = useState<Partial<Acesso> | null>(null)
   const [acessoParaRemover, setAcessoParaRemover] = useState<Acesso | null>(null)
+
   const { toast } = useToast()
   const { playSuccessSound } = useAudioFeedback()
 
@@ -153,15 +154,14 @@ export default function AcessosPage() {
         const { error } = await supabase.from("acessos").update(formData).eq("id", formData.id)
         if (error) throw error
         toast({ title: "Acesso atualizado" })
+        playSuccessSound()
       } else {
         // Adicionando
         const { error } = await supabase.from("acessos").insert(formData)
         if (error) throw error
         toast({ title: "Acesso adicionado" })
+        playSuccessSound()
       }
-
-      // Play success sound after successful save
-      playSuccessSound()
 
       setShowFormDialog(false)
       fetchAcessos() // Re-busca os dados para atualizar a lista
@@ -182,6 +182,7 @@ export default function AcessosPage() {
 
   const handleConfirmarRemocao = async () => {
     if (!acessoParaRemover) return
+
     setProcessing(true)
     try {
       const { error } = await supabase.from("acessos").delete().eq("id", acessoParaRemover.id)

@@ -35,7 +35,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { PlusCircle, Search, Settings, Trash2, Link, Info } from "lucide-react"
-import { containsUrls, extractUrls } from "@/lib/text-utils"
+import { containsUrls, extractUrls, convertUrlsToLinks } from "@/lib/text-utils"
 
 // --- Componente de Formulário Reutilizável ---
 function FaqForm({
@@ -419,7 +419,12 @@ export default function BaseConhecimentoPage() {
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="flex-grow p-6 pt-0">
-                      <p className="line-clamp-3 text-sm text-gray-600 dark:text-gray-400">{artigo.description}</p>
+                      <div
+                        className="line-clamp-3 text-sm text-gray-600 dark:text-gray-400"
+                        dangerouslySetInnerHTML={{
+                          __html: convertUrlsToLinks(artigo.description || ""),
+                        }}
+                      />
                     </CardContent>
                     <CardFooter className="p-4 pt-4 bg-gray-50 dark:bg-gray-800/50 mt-auto flex justify-between items-center">
                       <Button

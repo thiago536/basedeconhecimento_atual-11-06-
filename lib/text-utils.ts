@@ -58,6 +58,22 @@ export function convertTextWithLinks(text: string): React.ReactElement {
   return React.createElement(TextWithLinks, { text })
 }
 
+// Função para converter URLs em HTML com links clicáveis
+export function convertUrlsToLinks(text: string): string {
+  if (!text) return ""
+
+  const urlRegex =
+    /(https?:\/\/[^\s<>"{}|\\^`[\]]+|www\.[^\s<>"{}|\\^`[\]]+|[a-zA-Z0-9][a-zA-Z0-9-]{1,61}[a-zA-Z0-9]\.[a-zA-Z]{2,}(?:\/[^\s]*)?)/gi
+
+  return text.replace(urlRegex, (url) => {
+    let href = url
+    if (!url.startsWith("http://") && !url.startsWith("https://")) {
+      href = `https://${url}`
+    }
+    return `<a href="${href}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:text-blue-800 underline break-all transition-colors">${url}</a>`
+  })
+}
+
 // Função para testar se uma string contém URLs
 export function containsUrls(text: string): boolean {
   const urlRegex =
