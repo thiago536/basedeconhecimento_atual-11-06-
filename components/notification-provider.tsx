@@ -4,7 +4,11 @@ import type React from "react"
 
 import { useScheduledNotifications } from "@/hooks/use-scheduled-notifications"
 
-export function NotificationProvider({ children }: { children: React.ReactNode }) {
+interface NotificationProviderProps {
+  children: React.ReactNode
+}
+
+export function NotificationProvider({ children }: NotificationProviderProps) {
   // Initialize scheduled notifications
   useScheduledNotifications()
 

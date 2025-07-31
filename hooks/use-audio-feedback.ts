@@ -17,20 +17,5 @@ export function useAudioFeedback() {
     }
   }, [])
 
-  const playNotificationSound = useCallback(() => {
-    try {
-      const audio = new Audio("https://hebbkx1anhila5yf.public.blob.vercel-storage.com/0fu1am3mk2fk-timer-sfx-5-LhP27Uvg2MgncyK2TQ7sg7YgaY3UJZ.mp3")
-      audio.volume = 0.5 // 50% volume for notifications
-      audio.play().catch((error) => {
-        console.debug("Notification audio play failed:", error)
-      })
-    } catch (error) {
-      console.debug("Notification audio creation failed:", error)
-    }
-  }, [])
-
-  return {
-    playSuccessSound,
-    playNotificationSound,
-  }
+  return { playSuccessSound }
 }
