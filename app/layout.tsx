@@ -13,9 +13,14 @@ import { NotificationProvider } from "@/components/notification-provider"
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "E-PROSYS",
+  title: "E-PROSYS - Sistema de Gestão",
   description: "Base de conhecimento multiplataforma, gestão de pendências, lista de acessos e controle de SPEDs",
   generator: "v0.dev",
+  icons: {
+    icon: "/images/eprosys-logo.png",
+    shortcut: "/images/eprosys-logo.png",
+    apple: "/images/eprosys-logo.png",
+  },
 }
 
 export default function RootLayout({
@@ -25,6 +30,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="pt-BR" suppressHydrationWarning>
+      <head>
+        <link rel="icon" href="/images/eprosys-logo.png" type="image/png" />
+        <link rel="shortcut icon" href="/images/eprosys-logo.png" type="image/png" />
+        <link rel="apple-touch-icon" href="/images/eprosys-logo.png" />
+      </head>
       <body className={inter.className}>
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem disableTransitionOnChange>
           <NotificationProvider>

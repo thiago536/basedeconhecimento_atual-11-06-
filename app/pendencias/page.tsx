@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { useAppStore } from "@/lib/store"
-import { supabase, type Pendencia, type Author } from "@/lib/supabase"
+import { supabase, type Pendencia, type Autor } from "@/lib/supabase"
 import { useToast } from "@/components/ui/use-toast"
 import { useAudioFeedback } from "@/hooks/use-audio-feedback"
 import {
@@ -42,7 +42,7 @@ function PendenciaForm({
   isLoadingAuthors,
 }: {
   pendencia: Partial<Omit<Pendencia, "id" | "status">>
-  autores: Author[]
+  autores: Autor[]
   onSave: (pendencia: Partial<Pendencia>) => void
   onCancel: () => void
   isLoading: boolean
@@ -226,7 +226,6 @@ export default function PendenciasPage() {
 
       // Play success sound after successful save
       playSuccessSound()
-
       setShowFormDialog(false)
     } catch (error: any) {
       toast({ title: "Erro ao guardar", description: error.message, variant: "destructive" })
@@ -328,7 +327,6 @@ export default function PendenciasPage() {
               <TableRow>
                 <TableHead className="w-[150px]">Status</TableHead>
                 <TableHead>Título</TableHead>
-                {/* COLUNA ADICIONADA AQUI */}
                 <TableHead className="hidden md:table-cell">Descrição</TableHead>
                 <TableHead className="hidden md:table-cell">Autor</TableHead>
                 <TableHead className="hidden md:table-cell">Data</TableHead>
@@ -378,7 +376,6 @@ export default function PendenciasPage() {
                       </Select>
                     </TableCell>
                     <TableCell className="font-medium">{pendencia.titulo}</TableCell>
-                    {/* CÉLULA ADICIONADA AQUI */}
                     <TableCell className="hidden md:table-cell text-muted-foreground">{pendencia.descricao}</TableCell>
                     <TableCell className="hidden md:table-cell text-muted-foreground">
                       {pendencia.author || "N/A"}

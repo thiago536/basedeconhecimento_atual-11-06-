@@ -15,7 +15,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
-import { supabase, type Acesso } from "@/lib/supabase" // Importa diretamente do Supabase
+import { supabase, type Acesso } from "@/lib/supabase"
 import { useToast } from "@/components/ui/use-toast"
 import { useAudioFeedback } from "@/hooks/use-audio-feedback"
 import {
@@ -30,7 +30,6 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Skeleton } from "@/components/ui/skeleton"
 
-// O formulário continua a ser um componente limpo que apenas recebe e devolve dados
 function AcessoForm({
   acesso,
   onSave,
@@ -104,9 +103,8 @@ function AcessoForm({
   )
 }
 
-// Componente principal da página
 export default function AcessosPage() {
-  const [acessos, setAcessos] = useState<Acesso[]>([]) // Estado local em vez de global
+  const [acessos, setAcessos] = useState<Acesso[]>([])
   const [searchTerm, setSearchTerm] = useState("")
   const [loading, setLoading] = useState(true)
   const [processing, setProcessing] = useState(false)
@@ -118,7 +116,6 @@ export default function AcessosPage() {
   const { toast } = useToast()
   const { playSuccessSound } = useAudioFeedback()
 
-  // Função para buscar os dados diretamente do Supabase
   const fetchAcessos = async () => {
     setLoading(true)
     try {
@@ -133,7 +130,7 @@ export default function AcessosPage() {
   }
 
   useEffect(() => {
-    fetchAcessos() // Busca inicial
+    fetchAcessos()
   }, [])
 
   const handleAbrirForm = (acesso?: Acesso) => {
@@ -150,21 +147,19 @@ export default function AcessosPage() {
     setProcessing(true)
     try {
       if (formData.id) {
-        // Editando
         const { error } = await supabase.from("acessos").update(formData).eq("id", formData.id)
         if (error) throw error
         toast({ title: "Acesso atualizado" })
-        playSuccessSound()
       } else {
-        // Adicionando
         const { error } = await supabase.from("acessos").insert(formData)
         if (error) throw error
         toast({ title: "Acesso adicionado" })
-        playSuccessSound()
       }
 
+      // Play success sound after successful save
+      playSuccessSound()
       setShowFormDialog(false)
-      fetchAcessos() // Re-busca os dados para atualizar a lista
+      fetchAcessos()
     } catch (error: any) {
       if (error.code === "23505") {
         toast({
@@ -182,13 +177,12 @@ export default function AcessosPage() {
 
   const handleConfirmarRemocao = async () => {
     if (!acessoParaRemover) return
-
     setProcessing(true)
     try {
       const { error } = await supabase.from("acessos").delete().eq("id", acessoParaRemover.id)
       if (error) throw error
       toast({ title: "Acesso removido" })
-      fetchAcessos() // Re-busca os dados para atualizar a lista
+      fetchAcessos()
     } catch (error: any) {
       toast({ title: "Erro ao remover", description: error.message, variant: "destructive" })
     } finally {

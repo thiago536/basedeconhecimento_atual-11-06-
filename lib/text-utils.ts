@@ -63,11 +63,16 @@ export function convertUrlsToLinks(text: string): string {
   if (!text) return text
 
   // Enhanced regex to detect various URL patterns
-  const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+|[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}(?:\/[^\s]*)?)/g
+  const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+|[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}(?:\/[^\s]*)?)/gi
 
   return text.replace(urlRegex, (url) => {
-    // Add https:// if the URL doesn't start with http:// or https://
-    const href = url.startsWith("http") ? url : `https://${url}`
+    let href = url
+
+    // Add https:// if missing
+    if (!url.startsWith("http://") && !url.startsWith("https://")) {
+      href = `https://${url}`
+    }
+
     return `<a href="${href}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:text-blue-800 underline">${url}</a>`
   })
 }
@@ -87,16 +92,20 @@ export function extractUrls(text: string): string[] {
 }
 
 // Função para detectar o número de URLs em um texto
-export function detectUrls(text: string): number {
-  if (!text) return 0
+export function detectUrls(text: string): boolean {
+  if (!text) return false
 
-  const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+|[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}(?:\/[^\s]*)?)/g
-  const matches = text.match(urlRegex)
-  return matches ? matches.length : 0
+  const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+|[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}(?:\/[^\s]*)?)/gi
+  return urlRegex.test(text)
 }
 
 // Função para truncar texto para um comprimento máximo
 export function truncateText(text: string, maxLength: number): string {
   if (!text || text.length <= maxLength) return text
   return text.substring(0, maxLength) + "..."
+}
+
+// Função para remover HTML de uma string
+export function stripHtml(html: string): string {
+  return html.replace(/<[^>]*>/g, "")
 }

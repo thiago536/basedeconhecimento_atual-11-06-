@@ -76,4 +76,32 @@ if (!supabaseAnonKey) {
 // Cria e exporta uma ÚNICA instância do cliente Supabase para ser usada
 // em todo o lado do cliente (no navegador).
 // Esta é a maneira moderna e recomendada.
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    persistSession: false, // Disable auth for this app
+  },
+  db: {
+    schema: "public",
+  },
+  global: {
+    headers: {
+      "x-my-custom-header": "e-prosys-app",
+    },
+  },
+})
+
+// Test database connection function
+export async function testConnection() {
+  try {
+    const { data, error } = await supabase.from("faqs").select("count", { count: "exact", head: true })
+    if (error) {
+      console.error("Database connection test failed:", error)
+      return { success: false, error: error.message }
+    }
+    console.log("Database connection test successful")
+    return { success: true, count: data }
+  } catch (error) {
+    console.error("Database connection test error:", error)
+    return { success: false, error: "Connection failed" }
+  }
+}

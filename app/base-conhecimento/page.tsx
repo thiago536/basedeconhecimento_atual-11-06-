@@ -202,28 +202,72 @@ export default function BaseConhecimentoPage() {
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [faqEmEdicao, setFaqEmEdicao] = useState<Partial<FAQ> | null>(null)
   const [faqParaRemover, setFaqParaRemover] = useState<FAQ | null>(null)
+  const [connectionError, setConnectionError] = useState<string | null>(null)
   const { toast } = useToast()
   const { playSuccessSound } = useAudioFeedback()
-  const { addFaq, updateFaq, deleteFaq, autores, fetchAutores, subscribeToAutores } = useAppStore()
+  const { autores, fetchAutores, subscribeToAutores } = useAppStore()
 
   const [searchTerm, setSearchTerm] = useState(searchParams.get("q") || "")
   const [selectedCategory, setSelectedCategory] = useState(searchParams.get("category") || "all")
   const debouncedSearchTerm = useDebounce(searchTerm, 300)
 
+  // Test database connection
+  const testDatabaseConnection = useCallback(async () => {
+    try {
+      const { data, error } = await supabase.from("faqs").select("count", { count: "exact", head: true })
+      if (error) {
+        console.error("Database connection error:", error)
+        setConnectionError(`Erro de conexão: ${error.message}`)
+        return false
+      }
+      setConnectionError(null)
+      return true
+    } catch (error) {
+      console.error("Database connection test failed:", error)
+      setConnectionError("Falha na conexão com a base de dados")
+      return false
+    }
+  }, [])
+
   const fetchArtigos = useCallback(async () => {
     setLoading(true)
+    setConnectionError(null)
+
     try {
+      // Test connection first
+      const isConnected = await testDatabaseConnection()
+      if (!isConnected) {
+        setLoading(false)
+        return
+      }
+
+      console.log("Fetching FAQs from database...")
       const { data, error } = await supabase.from("faqs").select("*").order("created_at", { ascending: false })
-      if (error) throw error
+
+      if (error) {
+        console.error("Error fetching FAQs:", error)
+        throw error
+      }
+
+      console.log("FAQs fetched successfully:", data?.length || 0, "items")
       setArtigos(data || [])
-      const uniqueCategorias = [...new Set(data.map((item) => item.category))]
-      setCategorias(uniqueCategorias.filter((c): c is string => !!c))
+
+      // Extract unique categories
+      const uniqueCategorias = [...new Set(data?.map((item) => item.category).filter(Boolean))]
+      setCategorias(uniqueCategorias as string[])
     } catch (error) {
-      toast({ title: "Erro ao carregar artigos", description: (error as Error).message, variant: "destructive" })
+      console.error("Failed to fetch articles:", error)
+      const errorMessage = error instanceof Error ? error.message : "Erro desconhecido"
+      setConnectionError(`Erro ao carregar artigos: ${errorMessage}`)
+      toast({
+        title: "Erro ao carregar artigos",
+        description: errorMessage,
+        variant: "destructive",
+      })
     } finally {
       setLoading(false)
     }
-  }, [toast])
+  }, [toast, testDatabaseConnection])
 
   useEffect(() => {
     fetchArtigos()
@@ -264,11 +308,37 @@ export default function BaseConhecimentoPage() {
 
     setProcessing(true)
     try {
+      console.log("Saving FAQ:", faqData)
+
+      const faqToSave = {
+        title: faqData.title,
+        category: faqData.category,
+        description: faqData.description || "",
+        author: faqData.author || null,
+        images: faqData.images || [],
+      }
+
       if (faqData.id) {
-        await updateFaq(faqData.id, faqData)
+        console.log("Updating existing FAQ with ID:", faqData.id)
+        const { data, error } = await supabase.from("faqs").update(faqToSave).eq("id", faqData.id).select()
+
+        if (error) {
+          console.error("Error updating FAQ:", error)
+          throw error
+        }
+
+        console.log("FAQ updated successfully:", data)
         toast({ title: "Sucesso", description: "Artigo atualizado com sucesso." })
       } else {
-        await addFaq(faqData as Omit<FAQ, "id" | "created_at">)
+        console.log("Creating new FAQ")
+        const { data, error } = await supabase.from("faqs").insert([faqToSave]).select()
+
+        if (error) {
+          console.error("Error creating FAQ:", error)
+          throw error
+        }
+
+        console.log("FAQ created successfully:", data)
         toast({ title: "Sucesso", description: "Novo artigo adicionado." })
       }
 
@@ -276,9 +346,15 @@ export default function BaseConhecimentoPage() {
       playSuccessSound()
 
       setIsFormOpen(false)
-      fetchArtigos()
+      fetchArtigos() // Refresh the list
     } catch (error) {
-      toast({ title: "Erro ao guardar artigo", description: (error as Error).message, variant: "destructive" })
+      console.error("Failed to save FAQ:", error)
+      const errorMessage = error instanceof Error ? error.message : "Erro desconhecido"
+      toast({
+        title: "Erro ao guardar artigo",
+        description: errorMessage,
+        variant: "destructive",
+      })
     } finally {
       setProcessing(false)
     }
@@ -289,11 +365,25 @@ export default function BaseConhecimentoPage() {
 
     setProcessing(true)
     try {
-      await deleteFaq(faqParaRemover.id)
+      console.log("Deleting FAQ with ID:", faqParaRemover.id)
+      const { error } = await supabase.from("faqs").delete().eq("id", faqParaRemover.id)
+
+      if (error) {
+        console.error("Error deleting FAQ:", error)
+        throw error
+      }
+
+      console.log("FAQ deleted successfully")
       toast({ title: "Artigo removido", description: "O artigo foi removido com sucesso." })
-      fetchArtigos()
+      fetchArtigos() // Refresh the list
     } catch (error) {
-      toast({ title: "Erro ao remover", description: (error as Error).message, variant: "destructive" })
+      console.error("Failed to delete FAQ:", error)
+      const errorMessage = error instanceof Error ? error.message : "Erro desconhecido"
+      toast({
+        title: "Erro ao remover",
+        description: errorMessage,
+        variant: "destructive",
+      })
     } finally {
       setProcessing(false)
       setFaqParaRemover(null)
@@ -311,6 +401,54 @@ export default function BaseConhecimentoPage() {
       }),
     [artigos, debouncedSearchTerm, selectedCategory],
   )
+
+  // Show connection error if exists
+  if (connectionError) {
+    return (
+      <main className="flex-1 bg-gray-50/50 dark:bg-gray-900/50 p-6 md:p-8">
+        <div className="max-w-7xl mx-auto">
+          <div className="mb-8">
+            <h1 className="text-4xl font-bold tracking-tight text-gray-900 dark:text-gray-100">Base de Conhecimento</h1>
+            <p className="mt-2 text-lg text-gray-600 dark:text-gray-400">
+              Encontre artigos, tutoriais e soluções para as suas dúvidas.
+            </p>
+          </div>
+          <div className="bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 rounded-lg p-6">
+            <div className="flex items-center gap-3">
+              <div className="flex-shrink-0">
+                <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                  <path
+                    fillRule="evenodd"
+                    d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+                    clipRule="evenodd"
+                  />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-sm font-medium text-red-800 dark:text-red-200">
+                  Erro de Conexão com a Base de Dados
+                </h3>
+                <div className="mt-2 text-sm text-red-700 dark:text-red-300">
+                  <p>{connectionError}</p>
+                  <p className="mt-2">Verifique:</p>
+                  <ul className="list-disc list-inside mt-1">
+                    <li>Se as variáveis de ambiente estão configuradas corretamente</li>
+                    <li>Se a base de dados Supabase está acessível</li>
+                    <li>Se a tabela 'faqs' existe na base de dados</li>
+                  </ul>
+                </div>
+                <div className="mt-4">
+                  <Button onClick={fetchArtigos} variant="outline" size="sm">
+                    Tentar Novamente
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+    )
+  }
 
   return (
     <main className="flex-1 bg-gray-50/50 dark:bg-gray-900/50 p-6 md:p-8">

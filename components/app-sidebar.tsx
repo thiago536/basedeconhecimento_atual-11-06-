@@ -88,7 +88,7 @@ const MobileSidebar = () => {
     <>
       <div className="md:hidden flex items-center justify-between px-4 h-14 border-b bg-gray-100/50 dark:bg-gray-900/50">
         <Link href="/" className="flex items-center gap-2 font-bold text-lg">
-          <Image src="/images/eprosys-logo.png" alt="E-PROSYS Logo" width={32} height={32} className="rounded-md" />
+          <Image src="/images/eprosys-logo.png" alt="E-PROSYS Logo" width={28} height={28} className="rounded-sm" />
           <span className="text-gray-800 dark:text-gray-200">E-PROSYS</span>
         </Link>
         <Button variant="ghost" size="icon" onClick={() => setOpen(true)}>
@@ -109,9 +109,9 @@ const MobileSidebar = () => {
                 <Image
                   src="/images/eprosys-logo.png"
                   alt="E-PROSYS Logo"
-                  width={32}
-                  height={32}
-                  className="rounded-md"
+                  width={28}
+                  height={28}
+                  className="rounded-sm"
                 />
                 <span>E-PROSYS</span>
               </Link>
@@ -146,7 +146,7 @@ const SidebarHeader = ({ open }: { open: boolean }) => (
           alt="E-PROSYS Logo"
           width={32}
           height={32}
-          className="rounded-md flex-shrink-0"
+          className="rounded-sm flex-shrink-0"
         />
         <span className="text-gray-800 dark:text-gray-200">E-PROSYS</span>
       </Link>
@@ -154,7 +154,7 @@ const SidebarHeader = ({ open }: { open: boolean }) => (
     <AnimatePresence>
       {!open && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-          <Image src="/images/eprosys-logo.png" alt="E-PROSYS Logo" width={36} height={36} className="rounded-md" />
+          <Image src="/images/eprosys-logo.png" alt="E-PROSYS Logo" width={36} height={36} className="rounded-sm" />
         </motion.div>
       )}
     </AnimatePresence>
