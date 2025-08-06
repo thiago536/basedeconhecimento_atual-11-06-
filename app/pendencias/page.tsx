@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
-import { PlusCircle, Search, Trash2, AlertCircle, Clock, CheckCircle2, CheckSquare } from "lucide-react"
+import { PlusCircle, Search, Trash2, AlertCircle, Clock, CheckCircle2, CheckSquare } from 'lucide-react'
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -32,6 +32,17 @@ import {
 import { Skeleton } from "@/components/ui/skeleton"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
+
+// Loading dots animation component
+function LoadingDots() {
+  return (
+    <div className="flex items-center gap-1 ml-2">
+      <div className="w-1 h-1 bg-current rounded-full animate-bounce [animation-delay:-0.3s]"></div>
+      <div className="w-1 h-1 bg-current rounded-full animate-bounce [animation-delay:-0.15s]"></div>
+      <div className="w-1 h-1 bg-current rounded-full animate-bounce"></div>
+    </div>
+  )
+}
 
 function PendenciaForm({
   pendencia,
@@ -224,7 +235,6 @@ export default function PendenciasPage() {
         toast({ title: "Pendência adicionada" })
       }
 
-      // Play success sound after successful save
       playSuccessSound()
       setShowFormDialog(false)
     } catch (error: any) {
@@ -325,7 +335,7 @@ export default function PendenciasPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-[150px]">Status</TableHead>
+                <TableHead className="w-[200px]">Status</TableHead>
                 <TableHead>Título</TableHead>
                 <TableHead className="hidden md:table-cell">Descrição</TableHead>
                 <TableHead className="hidden md:table-cell">Autor</TableHead>
@@ -355,21 +365,22 @@ export default function PendenciasPage() {
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="nao-concluido">
-                            <div className="flex items-center gap-2">
-                              <CheckSquare />
-                              Não concluído
+                            <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-red-500 text-white hover:bg-red-600 transition-colors duration-300 min-w-[140px]">
+                              <CheckSquare className="h-4 w-4" />
+                              <span>Não concluído</span>
                             </div>
                           </SelectItem>
                           <SelectItem value="em-andamento">
-                            <div className="flex items-center gap-2">
-                              <Clock />
-                              Em andamento
+                            <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-yellow-500 text-white hover:bg-yellow-600 transition-colors duration-300 min-w-[140px]">
+                              <Clock className="h-4 w-4" />
+                              <span>Em andamento</span>
+                              <LoadingDots />
                             </div>
                           </SelectItem>
                           <SelectItem value="concluido">
-                            <div className="flex items-center gap-2">
-                              <CheckCircle2 />
-                              Concluído
+                            <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-green-500 text-white hover:bg-green-600 transition-colors duration-300 min-w-[140px]">
+                              <CheckCircle2 className="h-4 w-4" />
+                              <span>Concluído</span>
                             </div>
                           </SelectItem>
                         </SelectContent>
