@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
-import { PlusCircle, Search, Trash2, AlertCircle, Clock, CheckCircle2, CheckSquare } from 'lucide-react'
+import { PlusCircle, Search, Trash2, AlertCircle, Clock, CheckCircle2, CheckSquare } from "lucide-react"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -37,9 +37,9 @@ import { Textarea } from "@/components/ui/textarea"
 function LoadingDots() {
   return (
     <div className="flex items-center gap-1 ml-2">
-      <div className="w-1 h-1 bg-current rounded-full animate-bounce [animation-delay:-0.3s]"></div>
-      <div className="w-1 h-1 bg-current rounded-full animate-bounce [animation-delay:-0.15s]"></div>
-      <div className="w-1 h-1 bg-current rounded-full animate-bounce"></div>
+      <div className="w-1.5 h-1.5 bg-white rounded-full animate-bounce [animation-delay:-0.3s]"></div>
+      <div className="w-1.5 h-1.5 bg-white rounded-full animate-bounce [animation-delay:-0.15s]"></div>
+      <div className="w-1.5 h-1.5 bg-white rounded-full animate-bounce"></div>
     </div>
   )
 }
@@ -259,6 +259,80 @@ export default function PendenciasPage() {
     }
   }
 
+  const handleStatusChange = async (pendenciaId: number, newStatus: string) => {
+    setProcessingId(pendenciaId)
+    try {
+      await updatePendenciaStatus(pendenciaId, newStatus)
+
+      if (newStatus === "concluido") {
+        playSuccessSound()
+        toast({
+          title: "🎉 Parabéns!",
+          description: "Pendência concluída com sucesso!",
+        })
+      } else {
+        toast({
+          title: "Status atualizado",
+          description: "O status da pendência foi alterado.",
+        })
+      }
+    } catch (error: any) {
+      toast({
+        title: "Erro ao atualizar status",
+        description: error.message,
+        variant: "destructive",
+      })
+    } finally {
+      setProcessingId(null)
+    }
+  }
+
+  const getStatusDisplay = (status: string, isProcessing: boolean) => {
+    const baseStyle =
+      "flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-sm transition-all duration-300 min-w-[160px] shadow-sm border"
+
+    let statusStyle = ""
+    let icon = null
+    let text = ""
+    let extra = null
+
+    switch (status) {
+      case "nao-concluido":
+        statusStyle = "bg-red-500/80 hover:bg-red-500 text-white border-red-600/20"
+        icon = <CheckSquare className="h-4 w-4" />
+        text = "Não concluído"
+        break
+      case "em-andamento":
+        statusStyle = "bg-yellow-500/80 hover:bg-yellow-500 text-white border-yellow-600/20"
+        icon = <Clock className="h-4 w-4" />
+        text = "Em andamento"
+        extra = <LoadingDots />
+        break
+      case "concluido":
+        statusStyle = "bg-green-500/80 hover:bg-green-500 text-white border-green-600/20"
+        icon = <CheckCircle2 className="h-4 w-4" />
+        text = "Concluído"
+        break
+      default:
+        statusStyle = "bg-gray-500/80 hover:bg-gray-500 text-white border-gray-600/20"
+        icon = <CheckSquare className="h-4 w-4" />
+        text = status
+    }
+
+    return (
+      <div className={`${baseStyle} ${statusStyle}`}>
+        {icon}
+        <span>{text}</span>
+        {extra}
+        {isProcessing && (
+          <div className="ml-2">
+            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+          </div>
+        )}
+      </div>
+    )
+  }
+
   const filteredPendencias = useMemo(
     () =>
       pendencias
@@ -335,7 +409,7 @@ export default function PendenciasPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-[200px]">Status</TableHead>
+                <TableHead className="w-[220px]">Status</TableHead>
                 <TableHead>Título</TableHead>
                 <TableHead className="hidden md:table-cell">Descrição</TableHead>
                 <TableHead className="hidden md:table-cell">Autor</TableHead>
@@ -358,27 +432,28 @@ export default function PendenciasPage() {
                     <TableCell>
                       <Select
                         value={pendencia.status}
-                        onValueChange={(value) => updatePendenciaStatus(pendencia.id, value)}
+                        onValueChange={(value) => handleStatusChange(pendencia.id, value)}
+                        disabled={processingId === pendencia.id}
                       >
-                        <SelectTrigger>
-                          <SelectValue />
+                        <SelectTrigger className="border-0 bg-transparent p-0 h-auto focus:ring-0 shadow-none">
+                          {getStatusDisplay(pendencia.status, processingId === pendencia.id)}
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="nao-concluido">
-                            <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-red-500 text-white hover:bg-red-600 transition-colors duration-300 min-w-[140px]">
+                          <SelectItem value="nao-concluido" className="p-1">
+                            <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-red-500/80 text-white min-w-[160px]">
                               <CheckSquare className="h-4 w-4" />
                               <span>Não concluído</span>
                             </div>
                           </SelectItem>
-                          <SelectItem value="em-andamento">
-                            <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-yellow-500 text-white hover:bg-yellow-600 transition-colors duration-300 min-w-[140px]">
+                          <SelectItem value="em-andamento" className="p-1">
+                            <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-yellow-500/80 text-white min-w-[160px]">
                               <Clock className="h-4 w-4" />
                               <span>Em andamento</span>
                               <LoadingDots />
                             </div>
                           </SelectItem>
-                          <SelectItem value="concluido">
-                            <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-green-500 text-white hover:bg-green-600 transition-colors duration-300 min-w-[140px]">
+                          <SelectItem value="concluido" className="p-1">
+                            <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-green-500/80 text-white min-w-[160px]">
                               <CheckCircle2 className="h-4 w-4" />
                               <span>Concluído</span>
                             </div>

@@ -93,7 +93,7 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 // Test database connection function
 export async function testConnection() {
   try {
-    const { data, error } = await supabase.from("faqs").select("count", { count: "exact", head: true })
+    const { data, error } = await supabase.from("base_conhecimento").select("count", { count: "exact", head: true })
     if (error) {
       console.error("Database connection test failed:", error)
       return { success: false, error: error.message }
@@ -104,4 +104,29 @@ export async function testConnection() {
     console.error("Database connection test error:", error)
     return { success: false, error: "Connection failed" }
   }
+}
+
+// Função para verificar todas as tabelas disponíveis
+export async function checkTables() {
+  const tables = ["base_conhecimento", "acessos", "pendencias", "faqs"]
+  const results = {}
+
+  for (const table of tables) {
+    try {
+      const { count, error } = await supabase.from(table).select("*", { count: "exact", head: true })
+
+      if (error) {
+        console.log(`Tabela ${table}: ERRO -`, error.message)
+        results[table] = { exists: false, count: 0, error: error.message }
+      } else {
+        console.log(`Tabela ${table}: ${count} registros`)
+        results[table] = { exists: true, count: count || 0 }
+      }
+    } catch (err) {
+      console.log(`Tabela ${table}: ERRO -`, err)
+      results[table] = { exists: false, count: 0, error: err.message }
+    }
+  }
+
+  return results
 }
