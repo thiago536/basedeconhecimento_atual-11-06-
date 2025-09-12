@@ -6,7 +6,7 @@ import type React from "react"
 import { useState, createContext, useContext, useEffect } from "react"
 import { AnimatePresence, motion } from "framer-motion"
 import { usePathname } from "next/navigation"
-import { BookOpen, CheckSquare, Key, FileSpreadsheet, Settings, Home, X, Lock, Menu } from "lucide-react"
+import { BookOpen, CheckSquare, Key, FileSpreadsheet, Settings, Home, X, Lock, Menu, MapPin } from "lucide-react"
 import { ModeToggle } from "@/components/mode-toggle"
 import { Separator } from "@/components/ui/separator"
 import { Button } from "@/components/ui/button"
@@ -18,6 +18,7 @@ const navItems = [
   { title: "Base de Conhecimento", href: "/base-conhecimento", icon: <BookOpen className="h-5 w-5" /> },
   { title: "Pendências", href: "/pendencias", icon: <CheckSquare className="h-5 w-5" /> },
   { title: "Acessos", href: "/acessos", icon: <Key className="h-5 w-5" /> },
+  { title: "Postos", href: "/postos", icon: <MapPin className="h-5 w-5" /> },
   {
     title: "SPEDs",
     href: "https://eprosyssped.vercel.app/",
