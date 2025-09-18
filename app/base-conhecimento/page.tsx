@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState, useTransition, useMemo, useCallback } from "react"
+import { useEffect, useState, useMemo, useCallback } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useDebounce } from "@/hooks/use-debounce"
 import { useAudioFeedback } from "@/hooks/use-audio-feedback"
@@ -37,6 +37,19 @@ import {
 import { PlusCircle, Search, Settings, Trash2, Link, Info } from "lucide-react"
 import { containsUrls, extractUrls, convertUrlsToLinks } from "@/lib/text-utils"
 
+// --- Constante única para categorias (fonte de verdade) ---
+const CATEGORIES = [
+  { id: "automacao", name: "Automação" },
+  { id: "gerente", name: "Gerente" },
+  { id: "gerente-web", name: "Gerente Web" },
+  { id: "impressoras", name: "Impressoras" },
+  { id: "instalacao", name: "Instalação" },
+  { id: "integracao", name: "Integração" },
+  { id: "pdv", name: "PDV" },
+  { id: "pdv-movel", name: "PDV Móvel" },
+  { id: "pinpad", name: "PINPAD" },
+]
+
 // --- Componente de Formulário Reutilizável ---
 function FaqForm({
   faq,
@@ -63,17 +76,6 @@ function FaqForm({
   const handleChange = (field: keyof Omit<FAQ, "id" | "created_at">, value: string | ImageWithMetadata[]) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
   }
-
-  const categories = [
-    { id: "gerente", name: "Gerente" },
-    { id: "pdv", name: "PDV" },
-    { id: "pdv-movel", name: "PDV Móvel" },
-    { id: "instalacao", name: "Instalação" },
-    { id: "automacao", name: "Automação" },
-    { id: "integracao", name: "Integração" },
-    { id: "impressoras", name: "Impressoras" },
-    { id: "pinpad", name: "PINPAD" },
-  ]
 
   // Detectar URLs na descrição
   const hasUrls = formData.description ? containsUrls(formData.description) : false
@@ -102,7 +104,7 @@ function FaqForm({
               <SelectValue placeholder="Selecione uma categoria" />
             </SelectTrigger>
             <SelectContent>
-              {categories.map((cat) => (
+              {CATEGORIES.map((cat) => (
                 <SelectItem key={cat.id} value={cat.id}>
                   {cat.name}
                 </SelectItem>
@@ -194,9 +196,7 @@ Exemplos de URLs que funcionam:
 export default function BaseConhecimentoPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const [isPending, startTransition] = useTransition()
   const [artigos, setArtigos] = useState<FAQ[]>([])
-  const [categorias, setCategorias] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [processing, setProcessing] = useState(false)
   const [isFormOpen, setIsFormOpen] = useState(false)
@@ -251,10 +251,6 @@ export default function BaseConhecimentoPage() {
 
       console.log("FAQs fetched successfully:", data?.length || 0, "items")
       setArtigos(data || [])
-
-      // Extract unique categories
-      const uniqueCategorias = [...new Set(data?.map((item) => item.category).filter(Boolean))]
-      setCategorias(uniqueCategorias as string[])
     } catch (error) {
       console.error("Failed to fetch articles:", error)
       const errorMessage = error instanceof Error ? error.message : "Erro desconhecido"
@@ -269,6 +265,7 @@ export default function BaseConhecimentoPage() {
     }
   }, [toast, testDatabaseConnection])
 
+  // Initialize data on mount
   useEffect(() => {
     fetchArtigos()
     fetchAutores()
@@ -276,8 +273,9 @@ export default function BaseConhecimentoPage() {
     return () => {
       if (typeof unsubscribe === "function") unsubscribe()
     }
-  }, [fetchArtigos, fetchAutores, subscribeToAutores])
+  }, []) // Empty dependency array - only run on mount
 
+  // Update URL when search/filter changes (without causing re-renders)
   useEffect(() => {
     const params = new URLSearchParams()
     if (debouncedSearchTerm) {
@@ -286,81 +284,86 @@ export default function BaseConhecimentoPage() {
     if (selectedCategory && selectedCategory !== "all") {
       params.set("category", selectedCategory)
     }
-    startTransition(() => {
-      router.replace(`${window.location.pathname}?${params.toString()}`)
-    })
+
+    const newUrl = `${window.location.pathname}?${params.toString()}`
+    if (window.location.href !== window.location.origin + newUrl) {
+      router.replace(newUrl)
+    }
   }, [debouncedSearchTerm, selectedCategory, router])
 
-  const handleAbrirForm = (faq?: FAQ) => {
+  const handleAbrirForm = useCallback((faq?: FAQ) => {
     setFaqEmEdicao(faq ? { ...faq } : {})
     setIsFormOpen(true)
-  }
+  }, [])
 
-  const handleSalvarFaq = async (faqData: Partial<FAQ>) => {
-    if (!faqData.title || !faqData.category) {
-      toast({
-        title: "Campos obrigatórios",
-        description: "Título e Categoria são obrigatórios.",
-        variant: "destructive",
-      })
-      return
-    }
-
-    setProcessing(true)
-    try {
-      console.log("Saving FAQ:", faqData)
-
-      const faqToSave = {
-        title: faqData.title,
-        category: faqData.category,
-        description: faqData.description || "",
-        author: faqData.author || null,
-        images: faqData.images || [],
+  const handleSalvarFaq = useCallback(
+    async (faqData: Partial<FAQ>) => {
+      if (!faqData.title || !faqData.category) {
+        toast({
+          title: "Campos obrigatórios",
+          description: "Título e Categoria são obrigatórios.",
+          variant: "destructive",
+        })
+        return
       }
 
-      if (faqData.id) {
-        console.log("Updating existing FAQ with ID:", faqData.id)
-        const { data, error } = await supabase.from("faqs").update(faqToSave).eq("id", faqData.id).select()
+      setProcessing(true)
+      try {
+        console.log("Saving FAQ:", faqData)
 
-        if (error) {
-          console.error("Error updating FAQ:", error)
-          throw error
+        const faqToSave = {
+          title: faqData.title,
+          category: faqData.category,
+          description: faqData.description || "",
+          author: faqData.author || null,
+          images: faqData.images || [],
         }
 
-        console.log("FAQ updated successfully:", data)
-        toast({ title: "Sucesso", description: "Artigo atualizado com sucesso." })
-      } else {
-        console.log("Creating new FAQ")
-        const { data, error } = await supabase.from("faqs").insert([faqToSave]).select()
+        if (faqData.id) {
+          console.log("Updating existing FAQ with ID:", faqData.id)
+          const { data, error } = await supabase.from("faqs").update(faqToSave).eq("id", faqData.id).select()
 
-        if (error) {
-          console.error("Error creating FAQ:", error)
-          throw error
+          if (error) {
+            console.error("Error updating FAQ:", error)
+            throw error
+          }
+
+          console.log("FAQ updated successfully:", data)
+          toast({ title: "Sucesso", description: "Artigo atualizado com sucesso." })
+        } else {
+          console.log("Creating new FAQ")
+          const { data, error } = await supabase.from("faqs").insert([faqToSave]).select()
+
+          if (error) {
+            console.error("Error creating FAQ:", error)
+            throw error
+          }
+
+          console.log("FAQ created successfully:", data)
+          toast({ title: "Sucesso", description: "Novo artigo adicionado." })
         }
 
-        console.log("FAQ created successfully:", data)
-        toast({ title: "Sucesso", description: "Novo artigo adicionado." })
+        // Play success sound after successful save
+        playSuccessSound()
+
+        setIsFormOpen(false)
+        fetchArtigos() // Refresh the list
+      } catch (error) {
+        console.error("Failed to save FAQ:", error)
+        const errorMessage = error instanceof Error ? error.message : "Erro desconhecido"
+        toast({
+          title: "Erro ao guardar artigo",
+          description: errorMessage,
+          variant: "destructive",
+        })
+      } finally {
+        setProcessing(false)
       }
+    },
+    [toast, playSuccessSound, fetchArtigos],
+  )
 
-      // Play success sound after successful save
-      playSuccessSound()
-
-      setIsFormOpen(false)
-      fetchArtigos() // Refresh the list
-    } catch (error) {
-      console.error("Failed to save FAQ:", error)
-      const errorMessage = error instanceof Error ? error.message : "Erro desconhecido"
-      toast({
-        title: "Erro ao guardar artigo",
-        description: errorMessage,
-        variant: "destructive",
-      })
-    } finally {
-      setProcessing(false)
-    }
-  }
-
-  const handleConfirmarRemocao = async () => {
+  const handleConfirmarRemocao = useCallback(async () => {
     if (!faqParaRemover) return
 
     setProcessing(true)
@@ -388,7 +391,7 @@ export default function BaseConhecimentoPage() {
       setProcessing(false)
       setFaqParaRemover(null)
     }
-  }
+  }, [faqParaRemover, toast, fetchArtigos])
 
   const filteredFaqs = useMemo(
     () =>
@@ -401,6 +404,12 @@ export default function BaseConhecimentoPage() {
       }),
     [artigos, debouncedSearchTerm, selectedCategory],
   )
+
+  // Função para obter o nome da categoria pelo ID
+  const getCategoryName = useCallback((categoryId: string) => {
+    const category = CATEGORIES.find((cat) => cat.id === categoryId)
+    return category ? category.name : categoryId
+  }, [])
 
   // Show connection error if exists
   if (connectionError) {
@@ -475,9 +484,9 @@ export default function BaseConhecimentoPage() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Todas as Categorias</SelectItem>
-              {categorias.map((cat) => (
-                <SelectItem key={cat} value={cat}>
-                  {cat}
+              {CATEGORIES.map((cat) => (
+                <SelectItem key={cat.id} value={cat.id}>
+                  {cat.name}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -520,7 +529,7 @@ export default function BaseConhecimentoPage() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
-        {loading || isPending ? (
+        {loading ? (
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
             {Array.from({ length: 6 }).map((_, i) => (
               <Card key={i} className="p-4">
@@ -543,7 +552,7 @@ export default function BaseConhecimentoPage() {
                     <CardHeader className="p-6">
                       <div className="flex items-center justify-between mb-3">
                         <Badge variant="secondary" className="w-fit">
-                          {artigo.category}
+                          {getCategoryName(artigo.category)}
                         </Badge>
                         {hasUrls && (
                           <Badge variant="outline" className="text-xs flex items-center gap-1">
