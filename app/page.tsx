@@ -1,450 +1,191 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { supabase, type Pendencia } from "@/lib/supabase"
+"use client"
+
+import { useEffect, useState } from "react"
+import { Card, CardContent } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { Lock, Clock, AlertCircle, CheckCircle2, TrendingUp } from "lucide-react"
 import Link from "next/link"
-import Image from "next/image"
-import {
-  BookOpen,
-  CheckSquare,
-  Key,
-  FileSpreadsheet,
-  Settings,
-  BarChart3,
-  Users,
-  Clock,
-  TrendingUp,
-  ArrowRight,
-} from "lucide-react"
 
-// Função que busca as estatísticas corretas do banco de dados
-async function getStats() {
-  try {
-    // Buscar FAQs da tabela base_conhecimento
-    const { count: faqs, error: faqsError } = await supabase
-      .from("base_conhecimento")
-      .select("*", { count: "exact", head: true })
+interface PendenciesStats {
+  totalPendencias: number
+  pendenciasEmAndamento: number
+  pendenciasConcluidas: number
+  resolvidasPorDiaUltimaSemana: Array<{ dia: string; quantidade: number }>
+  _isMockData?: boolean
+}
 
-    if (faqsError) {
-      console.error("Erro ao buscar FAQs:", faqsError)
+export default function HomePage() {
+  const [dailyPassword, setDailyPassword] = useState("")
+  const [pendStats, setPendStats] = useState<PendenciesStats | null>(null)
+  const [currentTime, setCurrentTime] = useState("")
+
+  useEffect(() => {
+    const today = new Date()
+    const day = String(today.getDate()).padStart(2, "0")
+    const month = String(today.getMonth() + 1).padStart(2, "0")
+    const dateNumber = Number.parseInt(`${day}${month}`)
+    const password = (Math.floor((dateNumber / 8369) * 10000) % 10000).toString()
+    setDailyPassword(password)
+
+    // Atualizar horário
+    const updateTime = () => {
+      const now = new Date()
+      setCurrentTime(
+        now.toLocaleTimeString("pt-BR", {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+      )
     }
+    updateTime()
+    const interval = setInterval(updateTime, 1000)
 
-    // Buscar acessos da tabela acessos
-    const { count: acessos, error: acessosError } = await supabase
-      .from("acessos")
-      .select("*", { count: "exact", head: true })
+    return () => clearInterval(interval)
+  }, [])
 
-    if (acessosError) {
-      console.error("Erro ao buscar acessos:", acessosError)
-    }
-
-    // Buscar pendências com todos os status
-    const { data: pendenciasData, error: pendenciasError } = await supabase.from("pendencias").select("status")
-
-    if (pendenciasError) {
-      console.error("Erro ao buscar pendências:", pendenciasError)
-      return {
-        faqs: faqs ?? 0,
-        acessos: acessos ?? 0,
-        totalPendencias: 0,
-        naoConcluidas: 0,
-        emAndamento: 0,
-        concluidas: 0,
+  useEffect(() => {
+    const loadPendencies = async () => {
+      try {
+        const response = await fetch("/api/dashboard/pendencies-stats")
+        const data = await response.json()
+        setPendStats(data)
+      } catch (error) {
+        console.error("Erro ao carregar pendências:", error)
       }
     }
 
-    const pendencias = pendenciasData as Pendencia[]
-    const totalPendencias = pendencias?.length ?? 0
-    const naoConcluidas = pendencias?.filter((p) => p.status === "nao-concluido").length ?? 0
-    const emAndamento = pendencias?.filter((p) => p.status === "em-andamento").length ?? 0
-    const concluidas = pendencias?.filter((p) => p.status === "concluido").length ?? 0
+    loadPendencies()
+  }, [])
 
-    return {
-      faqs: faqs ?? 0,
-      acessos: acessos ?? 0,
-      totalPendencias,
-      naoConcluidas,
-      emAndamento,
-      concluidas,
-    }
-  } catch (error) {
-    console.error("Erro geral ao buscar estatísticas:", error)
-    return {
-      faqs: 0,
-      acessos: 0,
-      totalPendencias: 0,
-      naoConcluidas: 0,
-      emAndamento: 0,
-      concluidas: 0,
-    }
-  }
-}
-
-// Dados de navegação
-const navigationItems = [
-  {
-    title: "Base de Conhecimento",
-    description: "Gerencie artigos e documentos",
-    href: "/base-conhecimento",
-    icon: BookOpen,
-    color: "bg-blue-500",
-    hoverColor: "hover:bg-blue-600",
-    textColor: "text-blue-600",
-    bgLight: "bg-blue-50",
-  },
-  {
-    title: "Pendências",
-    description: "Acompanhe tarefas e projetos",
-    href: "/pendencias",
-    icon: CheckSquare,
-    color: "bg-green-500",
-    hoverColor: "hover:bg-green-600",
-    textColor: "text-green-600",
-    bgLight: "bg-green-50",
-  },
-  {
-    title: "Acessos",
-    description: "Controle credenciais e senhas",
-    href: "/acessos",
-    icon: Key,
-    color: "bg-purple-500",
-    hoverColor: "hover:bg-purple-600",
-    textColor: "text-purple-600",
-    bgLight: "bg-purple-50",
-  },
-  {
-    title: "SPEDs",
-    description: "Sistema de arquivos fiscais",
-    href: "https://eprosyssped.vercel.app/",
-    icon: FileSpreadsheet,
-    color: "bg-orange-500",
-    hoverColor: "hover:bg-orange-600",
-    textColor: "text-orange-600",
-    bgLight: "bg-orange-50",
-    external: true,
-  },
-  {
-    title: "Configuração",
-    description: "Ajustes e preferências",
-    href: "/configuracao",
-    icon: Settings,
-    color: "bg-gray-500",
-    hoverColor: "hover:bg-gray-600",
-    textColor: "text-gray-600",
-    bgLight: "bg-gray-50",
-  },
-]
-
-export default async function Dashboard() {
-  const { faqs, acessos, totalPendencias, naoConcluidas, emAndamento, concluidas } = await getStats()
+  const today = new Date().toLocaleDateString("pt-BR", {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  })
 
   return (
-    <>
-      {/* Mobile Header - Only visible on mobile */}
-      <div className="md:hidden sticky top-0 z-50 bg-white dark:bg-gray-950 border-b shadow-sm">
-        <div className="flex items-center justify-between px-4 h-16">
-          <div className="flex items-center gap-3">
-            <Image src="/images/eprosys-logo.png" alt="E-PROSYS Logo" width={32} height={32} className="rounded-lg" />
-            <span className="font-bold text-lg">E-PROSYS</span>
+    <div className="min-h-screen flex flex-col">
+      <section className="flex-1 flex items-center justify-center px-4 py-12 md:py-20 bg-gradient-to-br from-background via-background to-primary/5">
+        <div className="w-full max-w-4xl mx-auto text-center space-y-8">
+          {/* Saudação e data */}
+          <div className="space-y-2">
+            <p className="text-muted-foreground text-sm md:text-base uppercase tracking-wider">{today}</p>
+            <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold tracking-tight text-balance">
+              Bem-vindo ao <span className="text-primary">E-PROSYS</span>
+            </h1>
+            <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto text-pretty">
+              Sistema integrado de gestão empresarial
+            </p>
           </div>
-          <Link href="/configuracao">
-            <Button variant="ghost" size="icon">
-              <Settings className="h-5 w-5" />
-            </Button>
-          </Link>
-        </div>
-      </div>
 
-      {/* Main Content */}
-      <main className="flex-1 overflow-auto">
-        <div className="p-4 md:p-6 max-w-7xl mx-auto pb-20 md:pb-6">
-          {/* Desktop Header */}
-          <div className="hidden md:block mb-8">
-            <div className="flex items-center gap-3 mb-4">
-              <Image
-                src="/images/eprosys-logo.png"
-                alt="E-PROSYS Logo"
-                width={48}
-                height={48}
-                className="rounded-lg shadow-sm"
-              />
-              <div>
-                <h1 className="text-3xl font-bold text-gray-900 dark:text-gray-100">E-PROSYS Dashboard</h1>
-                <p className="text-base text-muted-foreground">Sistema integrado de gerenciamento empresarial</p>
+          {/* Senha do dia - Destaque máximo */}
+          <Card className="border-2 border-primary/20 bg-primary/5 shadow-lg backdrop-blur">
+            <CardContent className="p-8 md:p-12">
+              <div className="flex flex-col items-center gap-4">
+                <div className="flex items-center gap-3">
+                  <Lock className="h-8 w-8 md:h-10 md:w-10 text-primary" />
+                  <h2 className="text-xl md:text-2xl font-semibold text-foreground">Senha do Dia</h2>
+                </div>
+                <div className="text-7xl md:text-8xl lg:text-9xl font-bold text-primary tracking-wider tabular-nums">
+                  {dailyPassword || "----"}
+                </div>
+                <p className="text-sm md:text-base text-muted-foreground flex items-center gap-2">
+                  <Clock className="h-4 w-4" />
+                  Atualizado às {currentTime}
+                </p>
               </div>
-            </div>
-          </div>
+            </CardContent>
+          </Card>
 
-          {/* Mobile Welcome */}
-          <div className="md:hidden text-center mb-6">
-            <h1 className="text-2xl font-bold mb-2">Dashboard</h1>
-            <p className="text-gray-600 dark:text-gray-400 text-sm">Sistema integrado de gerenciamento empresarial</p>
-          </div>
-
-          {/* Quick Stats Overview */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-6 mb-8">
-            <Card className="border-l-4 border-l-blue-500">
-              <CardContent className="p-4">
-                <div className="flex items-center gap-2 md:block md:text-center">
-                  <BookOpen className="h-5 w-5 text-blue-600 md:mx-auto md:mb-2" />
-                  <div>
-                    <p className="text-xs md:text-sm text-muted-foreground">Artigos</p>
-                    <p className="text-lg md:text-2xl font-bold text-blue-600">{faqs}</p>
+          {/* Ações rápidas */}
+          <div className="flex flex-wrap items-center justify-center gap-4 pt-4">
+            <Link href="/base-conhecimento">
+              <Card className="hover:shadow-lg transition-all cursor-pointer hover:scale-105 border-2 hover:border-primary/50">
+                <CardContent className="p-6 flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                    <TrendingUp className="h-5 w-5 text-primary" />
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="border-l-4 border-l-purple-500">
-              <CardContent className="p-4">
-                <div className="flex items-center gap-2 md:block md:text-center">
-                  <Key className="h-5 w-5 text-purple-600 md:mx-auto md:mb-2" />
-                  <div>
-                    <p className="text-xs md:text-sm text-muted-foreground">Acessos</p>
-                    <p className="text-lg md:text-2xl font-bold text-purple-600">{acessos}</p>
+                  <span className="font-semibold">Base de Conhecimento</span>
+                </CardContent>
+              </Card>
+            </Link>
+            <Link href="/pendencias">
+              <Card className="hover:shadow-lg transition-all cursor-pointer hover:scale-105 border-2 hover:border-primary/50">
+                <CardContent className="p-6 flex items-center gap-3">
+                  <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                    <CheckCircle2 className="h-5 w-5 text-primary" />
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="border-l-4 border-l-yellow-500">
-              <CardContent className="p-4">
-                <div className="flex items-center gap-2 md:block md:text-center">
-                  <Clock className="h-5 w-5 text-yellow-600 md:mx-auto md:mb-2" />
-                  <div>
-                    <p className="text-xs md:text-sm text-muted-foreground">Pendências</p>
-                    <p className="text-lg md:text-2xl font-bold text-yellow-600">{totalPendencias}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="border-l-4 border-l-green-500">
-              <CardContent className="p-4">
-                <div className="flex items-center gap-2 md:block md:text-center">
-                  <TrendingUp className="h-5 w-5 text-green-600 md:mx-auto md:mb-2" />
-                  <div>
-                    <p className="text-xs md:text-sm text-muted-foreground">Concluídas</p>
-                    <p className="text-lg md:text-2xl font-bold text-green-600">{concluidas}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Mobile Quick Actions */}
-          <div className="md:hidden mb-6">
-            <h2 className="text-lg font-semibold mb-4">Ações Rápidas</h2>
-            <div className="grid grid-cols-2 gap-3">
-              <Link href="/base-conhecimento">
-                <Button className="w-full h-20 bg-blue-500 hover:bg-blue-600 text-white flex flex-col gap-2">
-                  <BookOpen className="h-5 w-5" />
-                  <span className="text-sm">Novo Artigo</span>
-                </Button>
-              </Link>
-              <Link href="/pendencias">
-                <Button className="w-full h-20 bg-green-500 hover:bg-green-600 text-white flex flex-col gap-2">
-                  <CheckSquare className="h-5 w-5" />
-                  <span className="text-sm">Nova Tarefa</span>
-                </Button>
-              </Link>
-              <Link href="/acessos">
-                <Button className="w-full h-20 bg-purple-500 hover:bg-purple-600 text-white flex flex-col gap-2">
-                  <Key className="h-5 w-5" />
-                  <span className="text-sm">Novo Acesso</span>
-                </Button>
-              </Link>
-              <a href="https://eprosyssped.vercel.app/" target="_blank" rel="noopener noreferrer">
-                <Button className="w-full h-20 bg-orange-500 hover:bg-orange-600 text-white flex flex-col gap-2">
-                  <FileSpreadsheet className="h-5 w-5" />
-                  <span className="text-sm">Abrir SPED</span>
-                </Button>
-              </a>
-            </div>
-          </div>
-
-          {/* Navigation Cards */}
-          <div className="mb-8">
-            <h2 className="text-xl md:text-2xl font-semibold mb-6">Navegação Rápida</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
-              {navigationItems.map((item) => {
-                const IconComponent = item.icon
-
-                if (item.external) {
-                  return (
-                    <a key={item.title} href={item.href} target="_blank" rel="noopener noreferrer" className="group">
-                      <Card className="h-full transition-all duration-300 hover:shadow-lg hover:scale-105 cursor-pointer border-2 hover:border-orange-200">
-                        <CardContent className="p-6">
-                          <div className="flex items-start gap-4">
-                            <div
-                              className={`p-3 rounded-lg ${item.bgLight} group-hover:scale-110 transition-transform duration-300`}
-                            >
-                              <IconComponent className={`h-6 w-6 ${item.textColor}`} />
-                            </div>
-                            <div className="flex-1">
-                              <h3 className="font-semibold text-lg mb-2 group-hover:text-orange-600 transition-colors">
-                                {item.title}
-                              </h3>
-                              <p className="text-sm text-muted-foreground mb-3">{item.description}</p>
-                              <div className="flex items-center text-sm text-orange-600 font-medium">
-                                Abrir sistema
-                                <ArrowRight className="h-4 w-4 ml-1 group-hover:translate-x-1 transition-transform" />
-                              </div>
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    </a>
-                  )
-                }
-
-                return (
-                  <Link key={item.title} href={item.href} className="group">
-                    <Card className="h-full transition-all duration-300 hover:shadow-lg hover:scale-105 cursor-pointer border-2 hover:border-blue-200">
-                      <CardContent className="p-6">
-                        <div className="flex items-start gap-4">
-                          <div
-                            className={`p-3 rounded-lg ${item.bgLight} group-hover:scale-110 transition-transform duration-300`}
-                          >
-                            <IconComponent className={`h-6 w-6 ${item.textColor}`} />
-                          </div>
-                          <div className="flex-1">
-                            <h3 className="font-semibold text-lg mb-2 group-hover:text-blue-600 transition-colors">
-                              {item.title}
-                            </h3>
-                            <p className="text-sm text-muted-foreground mb-3">{item.description}</p>
-                            <div className="flex items-center text-sm text-blue-600 font-medium">
-                              Acessar
-                              <ArrowRight className="h-4 w-4 ml-1 group-hover:translate-x-1 transition-transform" />
-                            </div>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </Link>
-                )
-              })}
-            </div>
-          </div>
-
-          {/* Status Overview */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
-            <Card className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 border-blue-200">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-blue-700 dark:text-blue-300 flex items-center gap-2">
-                  <BarChart3 className="h-5 w-5" />
-                  Produtividade
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span>Tarefas Concluídas</span>
-                    <span className="font-semibold text-green-600">{concluidas}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span>Em Andamento</span>
-                    <span className="font-semibold text-yellow-600">{emAndamento}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span>Não Concluídas</span>
-                    <span className="font-semibold text-red-600">{naoConcluidas}</span>
-                  </div>
-                  <div className="flex justify-between text-sm border-t pt-2">
-                    <span className="font-medium">Total</span>
-                    <span className="font-bold">{totalPendencias}</span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 border-green-200">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-green-700 dark:text-green-300 flex items-center gap-2">
-                  <Users className="h-5 w-5" />
-                  Base de Dados
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span>Artigos Salvos</span>
-                    <span className="font-semibold text-blue-600">{faqs}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span>Credenciais</span>
-                    <span className="font-semibold text-purple-600">{acessos}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span>Status</span>
-                    <span className="font-semibold text-green-600">Online</span>
-                  </div>
-                  <div className="flex justify-between text-sm border-t pt-2">
-                    <span className="font-medium">Total Registros</span>
-                    <span className="font-bold">{faqs + acessos + totalPendencias}</span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 border-purple-200">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-purple-700 dark:text-purple-300 flex items-center gap-2">
-                  <Clock className="h-5 w-5" />
-                  Resumo do Sistema
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span>Taxa de Conclusão</span>
-                    <span className="font-semibold text-green-600">
-                      {totalPendencias > 0 ? Math.round((concluidas / totalPendencias) * 100) : 0}%
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Tarefas Ativas</span>
-                    <span className="font-semibold text-yellow-600">{emAndamento}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Aguardando</span>
-                    <span className="font-semibold text-red-600">{naoConcluidas}</span>
-                  </div>
-                  <div className="flex justify-between border-t pt-2">
-                    <span className="font-medium">Versão</span>
-                    <span className="font-semibold">v2.0.0</span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+                  <span className="font-semibold">Ver Pendências</span>
+                </CardContent>
+              </Card>
+            </Link>
           </div>
         </div>
-      </main>
+      </section>
 
-      {/* Mobile Bottom Navigation */}
-      <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-950 border-t shadow-lg z-50">
-        <div className="grid grid-cols-5 gap-1 p-2">
-          <Link href="/" className="flex flex-col items-center p-2 text-blue-600">
-            <ArrowRight className="h-5 w-5" />
-            <span className="text-xs mt-1">Início</span>
-          </Link>
-          <Link href="/base-conhecimento" className="flex flex-col items-center p-2 text-gray-600">
-            <BookOpen className="h-5 w-5" />
-            <span className="text-xs mt-1">Artigos</span>
-          </Link>
-          <Link href="/pendencias" className="flex flex-col items-center p-2 text-gray-600">
-            <CheckSquare className="h-5 w-5" />
-            <span className="text-xs mt-1">Tarefas</span>
-          </Link>
-          <Link href="/acessos" className="flex flex-col items-center p-2 text-gray-600">
-            <Key className="h-5 w-5" />
-            <span className="text-xs mt-1">Acessos</span>
-          </Link>
-          <Link href="/configuracao" className="flex flex-col items-center p-2 text-gray-600">
-            <Settings className="h-5 w-5" />
-            <span className="text-xs mt-1">Config</span>
-          </Link>
+      <section className="border-t bg-muted/30 px-4 py-8">
+        <div className="max-w-6xl mx-auto">
+          <h3 className="text-xl md:text-2xl font-bold mb-6 text-center md:text-left">Resumo de Pendências</h3>
+
+          {pendStats ? (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* Total */}
+              <Card className="hover:shadow-md transition-shadow">
+                <CardContent className="p-6">
+                  <div className="flex items-start justify-between">
+                    <div className="space-y-1">
+                      <p className="text-sm font-medium text-muted-foreground">Total</p>
+                      <p className="text-3xl font-bold">{pendStats.totalPendencias}</p>
+                    </div>
+                    <div className="h-12 w-12 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
+                      <AlertCircle className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Em Andamento */}
+              <Card className="hover:shadow-md transition-shadow">
+                <CardContent className="p-6">
+                  <div className="flex items-start justify-between">
+                    <div className="space-y-1">
+                      <p className="text-sm font-medium text-muted-foreground">Em Andamento</p>
+                      <p className="text-3xl font-bold">{pendStats.pendenciasEmAndamento}</p>
+                    </div>
+                    <div className="h-12 w-12 rounded-lg bg-yellow-100 dark:bg-yellow-900/30 flex items-center justify-center">
+                      <Clock className="h-6 w-6 text-yellow-600 dark:text-yellow-400" />
+                    </div>
+                  </div>
+                  <Badge variant="outline" className="mt-3 badge-warning">
+                    Requer atenção
+                  </Badge>
+                </CardContent>
+              </Card>
+
+              {/* Concluídas */}
+              <Card className="hover:shadow-md transition-shadow">
+                <CardContent className="p-6">
+                  <div className="flex items-start justify-between">
+                    <div className="space-y-1">
+                      <p className="text-sm font-medium text-muted-foreground">Concluídas</p>
+                      <p className="text-3xl font-bold">{pendStats.pendenciasConcluidas}</p>
+                    </div>
+                    <div className="h-12 w-12 rounded-lg bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
+                      <CheckCircle2 className="h-6 w-6 text-green-600 dark:text-green-400" />
+                    </div>
+                  </div>
+                  <Badge variant="outline" className="mt-3 badge-success">
+                    Finalizadas
+                  </Badge>
+                </CardContent>
+              </Card>
+            </div>
+          ) : (
+            <div className="text-center py-8 text-muted-foreground">Carregando dados...</div>
+          )}
         </div>
-      </div>
-    </>
+      </section>
+    </div>
   )
 }

@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard E-PROSYS</title>
+    
+     TailwindCSS CDN 
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+     Chart.js CDN 
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.js"></script>
+    
+     Google Fonts 
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <style>
+        * {
+            font-family: 'Inter', sans-serif;
+        }
+        
+        .gradient-blue {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        
+        .gradient-green {
+            background: linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%);
+        }
+        
+        .gradient-orange {
+            background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+        }
+        
+        .gradient-purple {
+            background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
+        }
+        
+        .card-hover {
+            transition: all 0.3s ease;
+        }
+        
+        .card-hover:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        }
+        
+        .animate-fade-in {
+            animation: fadeIn 0.6s ease-in;
+        }
+        
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .loading-spinner {
+            border: 3px solid #f3f4f6;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+     Header 
+    <header class="bg-white shadow-sm border-b border-gray-200">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center py-6">
+                <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 gradient-blue rounded-lg flex items-center justify-center">
+                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                        </svg>
+                    </div>
+                    <div>
+                        <h1 class="text-2xl font-bold text-gray-900">Dashboard E-PROSYS</h1>
+                        <p class="text-sm text-gray-500">Sistema de Base de Conhecimento</p>
+                    </div>
+                </div>
+                <button onclick="refreshData()" id="refreshBtn" class="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                    </svg>
+                    <span>Atualizar</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+     Loading State 
+    <div id="loadingState" class="flex items-center justify-center h-96">
+        <div class="text-center">
+            <div class="loading-spinner mx-auto mb-4"></div>
+            <p class="text-gray-600 font-medium">Carregando estatísticas...</p>
+        </div>
+    </div>
+
+     Main Content 
+    <main id="mainContent" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 hidden">
+         Alert Banner 
+        <div id="alertBanner" class="mb-6 bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-lg hidden">
+            <div class="flex">
+                <svg class="h-5 w-5 text-yellow-400" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path>
+                </svg>
+                <div class="ml-3">
+                    <p class="text-sm text-yellow-700">
+                        <strong>Modo Demonstração:</strong> Exibindo dados de exemplo. Configure o Supabase para visualizar dados reais.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+         Stats Grid - Base de Conhecimento 
+        <div class="mb-8 animate-fade-in">
+            <h2 class="text-xl font-bold text-gray-900 mb-4 flex items-center">
+                <svg class="w-6 h-6 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path>
+                </svg>
+                Base de Conhecimento
+            </h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                 Card 1 
+                <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 card-hover">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="w-12 h-12 gradient-blue rounded-lg flex items-center justify-center">
+                            <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                            </svg>
+                        </div>
+                    </div>
+                    <p class="text-gray-500 text-sm font-medium">Total de Artigos</p>
+                    <p id="totalArtigos" class="text-3xl font-bold text-gray-900 mt-2">0</p>
+                </div>
+
+                 Card 2 
+                <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 card-hover">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="w-12 h-12 gradient-green rounded-lg flex items-center justify-center">
+                            <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                            </svg>
+                        </div>
+                    </div>
+                    <p class="text-gray-500 text-sm font-medium">Adicionados (30 dias)</p>
+                    <p id="adicionados30dias" class="text-3xl font-bold text-gray-900 mt-2">0</p>
+                </div>
+
+                 Card 3 
+                <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 card-hover">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="w-12 h-12 gradient-orange rounded-lg flex items-center justify-center">
+                            <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                            </svg>
+                        </div>
+                    </div>
+                    <p class="text-gray-500 text-sm font-medium">Modificados (30 dias)</p>
+                    <p id="modificados30dias" class="text-3xl font-bold text-gray-900 mt-2">0</p>
+                </div>
+
+                 Card 4 
+                <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 card-hover">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="w-12 h-12 gradient-purple rounded-lg flex items-center justify-center">
+                            <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
+                            </svg>
+                        </div>
+                    </div>
+                    <p class="text-gray-500 text-sm font-medium">Taxa de Atualização</p>
+                    <p id="taxaAtualizacao" class="text-3xl font-bold text-gray-900 mt-2">0%</p>
+                </div>
+            </div>
+        </div>
+
+         Stats Grid - Pendências 
+        <div class="mb-8 animate-fade-in" style="animation-delay: 0.2s;">
+            <h2 class="text-xl font-bold text-gray-900 mb-4 flex items-center">
+                <svg class="w-6 h-6 mr-2 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path>
+                </svg>
+                Pendências
+            </h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                 Card 1 
+                <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 card-hover">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center">
+                            <svg class="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+                            </svg>
+                        </div>
+                    </div>
+                    <p class="text-gray-500 text-sm font-medium">Total</p>
+                    <p id="totalPendencias" class="text-3xl font-bold text-gray-900 mt-2">0</p>
+                </div>
+
+                 Card 2 
+                <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 card-hover">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
+                            <svg class="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
+                        </div>
+                    </div>
+                    <p class="text-gray-500 text-sm font-medium">Em Andamento</p>
+                    <p id="emAndamento" class="text-3xl font-bold text-gray-900 mt-2">0</p>
+                </div>
+
+                 Card 3 
+                <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 card-hover">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+                            <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
+                        </div>
+                    </div>
+                    <p class="text-gray-500 text-sm font-medium">Concluídas</p>
+                    <p id="concluidas" class="text-3xl font-bold text-gray-900 mt-2">0</p>
+                </div>
+            </div>
+        </div>
+
+         Charts Section 
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 animate-fade-in" style="animation-delay: 0.4s;">
+             Chart 1 - Pendências Resolvidas 
+            <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                <h3 class="text-lg font-bold text-gray-900 mb-4">Pendências Resolvidas (Últimos 7 Dias)</h3>
+                <canvas id="pendenciasChart"></canvas>
+            </div>
+
+             Chart 2 - Artigos Mais Acessados 
+            <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                <h3 class="text-lg font-bold text-gray-900 mb-4">Artigos Mais Recentes</h3>
+                <div id="artigosLista" class="space-y-3">
+                     Will be populated by JavaScript 
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        let pendenciasChart = null;
+
+        // Fetch data from API
+        async function fetchDashboardData() {
+            try {
+                const [kbResponse, pendResponse] = await Promise.all([
+                    fetch('/api/dashboard/knowledge-base-stats'),
+                    fetch('/api/dashboard/pendencies-stats')
+                ]);
+
+                const kbData = await kbResponse.json();
+                const pendData = await pendResponse.json();
+
+                return { kbData, pendData };
+            } catch (error) {
+                console.error('Erro ao buscar dados:', error);
+                throw error;
+            }
+        }
+
+        // Update dashboard UI
+        function updateDashboard(kbData, pendData) {
+            // Update Base de Conhecimento stats
+            document.getElementById('totalArtigos').textContent = kbData.totalArtigos || 0;
+            document.getElementById('adicionados30dias').textContent = kbData.adicionadosUltimos30dias || 0;
+            document.getElementById('modificados30dias').textContent = kbData.modificadosUltimos30dias || 0;
+            
+            const taxaAtualizacao = kbData.totalArtigos > 0 
+                ? Math.round((kbData.modificadosUltimos30dias / kbData.totalArtigos) * 100) 
+                : 0;
+            document.getElementById('taxaAtualizacao').textContent = taxaAtualizacao + '%';
+
+            // Update Pendências stats
+            document.getElementById('totalPendencias').textContent = pendData.totalPendencias || 0;
+            document.getElementById('emAndamento').textContent = pendData.pendenciasEmAndamento || 0;
+            document.getElementById('concluidas').textContent = pendData.pendenciasConcluidas || 0;
+
+            // Check if using mock data
+            if (kbData.totalArtigos === 25 && kbData.adicionadosUltimos30dias === 8) {
+                document.getElementById('alertBanner').classList.remove('hidden');
+            }
+
+            // Update charts
+            updatePendenciasChart(pendData.resolvidasPorDiaUltimaSemana);
+            updateArtigosLista(kbData.artigosMaisAcessados);
+        }
+
+        // Update Pendências Chart
+        function updatePendenciasChart(data) {
+            const ctx = document.getElementById('pendenciasChart').getContext('2d');
+            
+            // Destroy existing chart if it exists
+            if (pendenciasChart) {
+                pendenciasChart.destroy();
+            }
+
+            const labels = data.map(item => item.dia);
+            const valores = data.map(item => item.quantidade);
+
+            pendenciasChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Pendências Resolvidas',
+                        data: valores,
+                        backgroundColor: function(context) {
+                            const chart = context.chart;
+                            const {ctx, chartArea} = chart;
+                            
+                            if (!chartArea) {
+                                return null;
+                            }
+                            
+                            const gradient = ctx.createLinearGradient(0, chartArea.bottom, 0, chartArea.top);
+                            gradient.addColorStop(0, 'rgba(52, 211, 153, 0.8)');
+                            gradient.addColorStop(0.5, 'rgba(16, 185, 129, 0.9)');
+                            gradient.addColorStop(1, 'rgba(5, 150, 105, 1)');
+                            return gradient;
+                        },
+                        borderColor: 'rgb(16, 185, 129)',
+                        borderWidth: 2,
+                        borderRadius: 8,
+                        borderSkipped: false,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    animation: {
+                        duration: 1500,
+                        easing: 'easeOutQuart'
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                            padding: 12,
+                            titleFont: {
+                                size: 14,
+                                weight: 'bold'
+                            },
+                            bodyFont: {
+                                size: 13
+                            },
+                            callbacks: {
+                                label: function(context) {
+                                    const value = context.parsed.y;
+                                    const label = value === 1 ? 'pendência resolvida' : 'pendências resolvidas';
+                                    return `${value} ${label}`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                precision: 0,
+                                font: {
+                                    size: 12
+                                }
+                            },
+                            grid: {
+                                color: 'rgba(0, 0, 0, 0.05)',
+                                drawBorder: false
+                            },
+                            title: {
+                                display: true,
+                                text: 'Quantidade',
+                                font: {
+                                    size: 13,
+                                    weight: 'bold'
+                                }
+                            }
+                        },
+                        x: {
+                            grid: {
+                                display: false
+                            },
+                            ticks: {
+                                font: {
+                                    size: 11
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Update Artigos Lista
+        function updateArtigosLista(artigos) {
+            const container = document.getElementById('artigosLista');
+            container.innerHTML = '';
+
+            artigos.forEach((artigo, index) => {
+                const item = document.createElement('div');
+                item.className = 'flex items-start gap-3 p-4 rounded-lg bg-gradient-to-r from-blue-50 to-blue-100 hover:shadow-md transition-all duration-300';
+                item.innerHTML = `
+                    <div class="flex-shrink-0 w-8 h-8 rounded-full gradient-blue flex items-center justify-center text-white font-bold text-sm">
+                        ${index + 1}
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <p class="text-sm font-medium text-gray-900 truncate">${artigo.titulo}</p>
+                        <p class="text-xs text-gray-500 mt-1">${artigo.acessos} visualizações</p>
+                    </div>
+                `;
+                container.appendChild(item);
+            });
+        }
+
+        // Refresh data
+        async function refreshData() {
+            const btn = document.getElementById('refreshBtn');
+            btn.disabled = true;
+            btn.innerHTML = `
+                <svg class="w-5 h-5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                </svg>
+                <span>Atualizando...</span>
+            `;
+
+            try {
+                const { kbData, pendData } = await fetchDashboardData();
+                updateDashboard(kbData, pendData);
+            } catch (error) {
+                console.error('Erro ao atualizar:', error);
+            } finally {
+                setTimeout(() => {
+                    btn.disabled = false;
+                    btn.innerHTML = `
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                        </svg>
+                        <span>Atualizar</span>
+                    `;
+                }, 500);
+            }
+        }
+
+        // Initialize dashboard
+        async function init() {
+            try {
+                const { kbData, pendData } = await fetchDashboardData();
+                updateDashboard(kbData, pendData);
+                
+                document.getElementById('loadingState').classList.add('hidden');
+                document.getElementById('mainContent').classList.remove('hidden');
+            } catch (error) {
+                console.error('Erro ao inicializar dashboard:', error);
+                document.getElementById('loadingState').innerHTML = `
+                    <div class="text-center">
+                        <svg class="w-16 h-16 text-red-500 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                        <p class="text-gray-600 font-medium mb-2">Erro ao carregar o dashboard</p>
+                        <button onclick="location.reload()" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                            Tentar Novamente
+                        </button>
+                    </div>
+                `;
+            }
+        }
+
+        // Start when DOM is ready
+        document.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>
