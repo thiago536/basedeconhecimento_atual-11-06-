@@ -6,7 +6,19 @@ import type React from "react"
 import { useState, createContext, useContext, useEffect } from "react"
 import { AnimatePresence, motion } from "framer-motion"
 import { usePathname } from "next/navigation"
-import { BookOpen, CheckSquare, Key, FileSpreadsheet, Settings, Home, X, Lock, Menu, MapPin } from "lucide-react"
+import {
+  BookOpen,
+  CheckSquare,
+  Key,
+  FileSpreadsheet,
+  Settings,
+  Home,
+  X,
+  Lock,
+  Menu,
+  MapPin,
+  LayoutDashboard,
+} from "lucide-react"
 import { ModeToggle } from "@/components/mode-toggle"
 import { Separator } from "@/components/ui/separator"
 import { Button } from "@/components/ui/button"
@@ -19,6 +31,11 @@ const navItems = [
   { title: "Pendências", href: "/pendencias", icon: <CheckSquare className="h-5 w-5" /> },
   { title: "Acessos", href: "/acessos", icon: <Key className="h-5 w-5" /> },
   { title: "Postos", href: "/postos", icon: <MapPin className="h-5 w-5" /> },
+  {
+    title: "Dashboard Administrativa",
+    href: "/dashboard-administrativa",
+    icon: <LayoutDashboard className="h-5 w-5" />,
+  },
   {
     title: "SPEDs",
     href: "https://eprosyssped.vercel.app/",
@@ -117,7 +134,7 @@ const MobileSidebar = () => {
 
   return (
     <>
-      <div className="md:hidden flex items-center justify-between px-4 h-14 border-b bg-gray-100/50 dark:bg-gray-900/50">
+      <div className="md:hidden flex items-center justify-between px-4 h-14 border-b bg-gray-100/50 dark:bg-gray-950">
         <Link href="/" className="flex items-center gap-2 font-bold text-lg">
           <Image src="/images/eprosys-logo.png" alt="E-PROSYS Logo" width={32} height={32} className="rounded-md" />
           <span className="text-gray-800 dark:text-gray-200">E-PROSYS</span>
