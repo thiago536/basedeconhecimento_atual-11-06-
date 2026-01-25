@@ -5,6 +5,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Lock, Clock, AlertCircle, CheckCircle2, TrendingUp } from "lucide-react"
 import Link from "next/link"
+import { HeroAnimation } from "@/components/HeroAnimation"
 
 interface PendenciesStats {
   totalPendencias: number
@@ -186,6 +187,7 @@ export default function HomePage() {
           )}
         </div>
       </section>
+      <HeroAnimation />
     </div>
   )
 }
