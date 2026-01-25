@@ -1,9 +1,9 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Card, CardContent } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Lock, Clock, AlertCircle, CheckCircle2, TrendingUp } from "lucide-react"
+import { Lock, Clock, AlertCircle, CheckCircle2, TrendingUp, Shield, Users, MapPin, LayoutDashboard, Settings, BookOpen } from "lucide-react"
 import Link from "next/link"
 import { HeroAnimation } from "@/components/HeroAnimation"
 
@@ -16,19 +16,27 @@ interface PendenciesStats {
 }
 
 export default function HomePage() {
-  const [dailyPassword, setDailyPassword] = useState("")
+  const [passwords, setPasswords] = useState({ suporte: "", eprosys: "" })
   const [pendStats, setPendStats] = useState<PendenciesStats | null>(null)
   const [currentTime, setCurrentTime] = useState("")
 
   useEffect(() => {
-    const today = new Date()
-    const day = String(today.getDate()).padStart(2, "0")
-    const month = String(today.getMonth() + 1).padStart(2, "0")
-    const dateNumber = Number.parseInt(`${day}${month}`)
-    const password = (Math.floor((dateNumber / 8369) * 10000) % 10000).toString()
-    setDailyPassword(password)
+    // Calculadoras de Senha
+    const calculatePasswords = () => {
+      const today = new Date()
+      const day = String(today.getDate()).padStart(2, "0")
+      const month = String(today.getMonth() + 1).padStart(2, "0")
+      const dateNumber = Number.parseInt(`${day}${month}`)
 
-    // Atualizar horário
+      const passSuporte = (Math.floor((dateNumber / 8369) * 10000) % 10000).toString().padStart(4, "0")
+      const passEprosys = (Math.floor((dateNumber / 8597) * 10000) % 10000).toString().padStart(4, "0")
+
+      setPasswords({ suporte: passSuporte, eprosys: passEprosys })
+    }
+
+    calculatePasswords()
+
+    // Relógio e Atualização Diária
     const updateTime = () => {
       const now = new Date()
       setCurrentTime(
@@ -37,6 +45,10 @@ export default function HomePage() {
           minute: "2-digit",
         }),
       )
+      // Recalcular senhas se virar o dia
+      if (now.getHours() === 0 && now.getMinutes() === 0 && now.getSeconds() === 0) {
+        calculatePasswords()
+      }
     }
     updateTime()
     const interval = setInterval(updateTime, 1000)
@@ -58,135 +70,191 @@ export default function HomePage() {
     loadPendencies()
   }, [])
 
+  const modules = [
+    {
+      title: "Base de Conhecimento",
+      icon: BookOpen,
+      href: "/base-conhecimento",
+      color: "text-blue-500",
+      bg: "bg-blue-500/10",
+      desc: "Manuais e Procedimentos"
+    },
+    {
+      title: "Central de Pendências",
+      icon: CheckCircle2,
+      href: "/pendencias",
+      color: "text-amber-500",
+      bg: "bg-amber-500/10",
+      desc: "Gestão de Tarefas"
+    },
+    {
+      title: "Gestão de Acessos",
+      icon: Users,
+      href: "/acessos",
+      color: "text-green-500",
+      bg: "bg-green-500/10",
+      desc: "Controle de Usuários"
+    },
+    {
+      title: "Gestão de Postos",
+      icon: MapPin,
+      href: "/postos",
+      color: "text-purple-500",
+      bg: "bg-purple-500/10",
+      desc: "Unidades e Locais"
+    },
+    {
+      title: "Dashboard Admin",
+      icon: LayoutDashboard,
+      href: "/dashboard-administrativa",
+      color: "text-indigo-500",
+      bg: "bg-indigo-500/10",
+      desc: "Métricas Gerais"
+    },
+    {
+      title: "Configurações",
+      icon: Settings,
+      href: "/configuracao",
+      color: "text-slate-500",
+      bg: "bg-slate-500/10",
+      desc: "Ajustes do Sistema"
+    }
+  ]
+
   const today = new Date().toLocaleDateString("pt-BR", {
     weekday: "long",
-    year: "numeric",
-    month: "long",
     day: "numeric",
+    month: "long",
   })
 
   return (
-    <div className="min-h-screen flex flex-col">
-      <section className="flex-1 flex items-center justify-center px-4 py-12 md:py-20 bg-gradient-to-br from-background via-background to-primary/5">
-        <div className="w-full max-w-4xl mx-auto text-center space-y-8">
-          {/* Saudação e data */}
-          <div className="space-y-2">
-            <p className="text-muted-foreground text-sm md:text-base uppercase tracking-wider">{today}</p>
-            <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold tracking-tight text-balance">
-              Bem-vindo ao <span className="text-primary">E-PROSYS</span>
+    <div className="min-h-screen flex flex-col bg-gradient-to-br from-background via-background to-secondary/20 overflow-x-hidden">
+
+      {/* Header Section */}
+      <header className="px-6 py-8 md:py-12 max-w-7xl mx-auto w-full">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 mb-8">
+          <div>
+            <p className="text-muted-foreground uppercase tracking-widest text-xs font-medium mb-2">{today}</p>
+            <h1 className="text-4xl md:text-5xl lg:text-7xl font-bold tracking-tighter text-foreground">
+              E-PROSYS <span className="text-primary/40">.OS</span>
             </h1>
-            <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto text-pretty">
-              Sistema integrado de gestão empresarial
+            <p className="text-lg text-muted-foreground mt-2 max-w-md">
+              Sistema Integrado de Gestão Empresarial e Segurança
             </p>
           </div>
-
-          {/* Senha do dia - Destaque máximo */}
-          <Card className="border-2 border-primary/20 bg-primary/5 shadow-lg backdrop-blur">
-            <CardContent className="p-8 md:p-12">
-              <div className="flex flex-col items-center gap-4">
-                <div className="flex items-center gap-3">
-                  <Lock className="h-8 w-8 md:h-10 md:w-10 text-primary" />
-                  <h2 className="text-xl md:text-2xl font-semibold text-foreground">Senha do Dia</h2>
-                </div>
-                <div className="text-7xl md:text-8xl lg:text-9xl font-bold text-primary tracking-wider tabular-nums">
-                  {dailyPassword || "----"}
-                </div>
-                <p className="text-sm md:text-base text-muted-foreground flex items-center gap-2">
-                  <Clock className="h-4 w-4" />
-                  Atualizado às {currentTime}
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Ações rápidas */}
-          <div className="flex flex-wrap items-center justify-center gap-4 pt-4">
-            <Link href="/base-conhecimento">
-              <Card className="hover:shadow-lg transition-all cursor-pointer hover:scale-105 border-2 hover:border-primary/50">
-                <CardContent className="p-6 flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-                    <TrendingUp className="h-5 w-5 text-primary" />
-                  </div>
-                  <span className="font-semibold">Base de Conhecimento</span>
-                </CardContent>
-              </Card>
-            </Link>
-            <Link href="/pendencias">
-              <Card className="hover:shadow-lg transition-all cursor-pointer hover:scale-105 border-2 hover:border-primary/50">
-                <CardContent className="p-6 flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-                    <CheckCircle2 className="h-5 w-5 text-primary" />
-                  </div>
-                  <span className="font-semibold">Ver Pendências</span>
-                </CardContent>
-              </Card>
-            </Link>
+          <div className="flex items-center gap-2 bg-background/50 backdrop-blur-sm px-4 py-2 rounded-full border shadow-sm">
+            <Clock className="w-4 h-4 text-primary animate-pulse" />
+            <span className="font-mono font-medium">{currentTime}</span>
           </div>
         </div>
-      </section>
 
-      <section className="border-t bg-muted/30 px-4 py-8">
-        <div className="max-w-6xl mx-auto">
-          <h3 className="text-xl md:text-2xl font-bold mb-6 text-center md:text-left">Resumo de Pendências</h3>
+        {/* Security Command Center (Hero) */}
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-6 mb-12">
 
-          {pendStats ? (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {/* Total */}
-              <Card className="hover:shadow-md transition-shadow">
-                <CardContent className="p-6">
-                  <div className="flex items-start justify-between">
-                    <div className="space-y-1">
-                      <p className="text-sm font-medium text-muted-foreground">Total</p>
-                      <p className="text-3xl font-bold">{pendStats.totalPendencias}</p>
-                    </div>
-                    <div className="h-12 w-12 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
-                      <AlertCircle className="h-6 w-6 text-blue-600 dark:text-blue-400" />
-                    </div>
+          {/* Main Security Panel */}
+          <div className="md:col-span-8 lg:col-span-9">
+            <Card className="h-full border-none shadow-2xl bg-gradient-to-br from-slate-900 to-slate-800 text-white overflow-hidden relative group">
+              {/* Glass Effect Overlay */}
+              <div className="absolute inset-0 bg-white/5 backdrop-blur-[1px] group-hover:bg-white/10 transition-colors duration-500" />
+
+              <CardContent className="relative z-10 p-8 md:p-12 flex flex-col justify-between h-full min-h-[300px]">
+                <div className="flex items-start justify-between">
+                  <div className="space-y-1">
+                    <Badge variant="outline" className="text-white border-white/20 bg-white/10 hover:bg-white/20 px-3 py-1">
+                      <Shield className="w-3 h-3 mr-2" />
+                      Security Center
+                    </Badge>
+                    <h2 className="text-2xl font-light opacity-90">Senhas do Dia</h2>
                   </div>
-                </CardContent>
-              </Card>
+                  <Lock className="w-12 h-12 text-white/20" />
+                </div>
 
-              {/* Em Andamento */}
-              <Card className="hover:shadow-md transition-shadow">
-                <CardContent className="p-6">
-                  <div className="flex items-start justify-between">
-                    <div className="space-y-1">
-                      <p className="text-sm font-medium text-muted-foreground">Em Andamento</p>
-                      <p className="text-3xl font-bold">{pendStats.pendenciasEmAndamento}</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 mt-8">
+                  {/* Suporte Pass */}
+                  <div className="relative group/pass">
+                    <div className="absolute -inset-4 bg-blue-500/20 blur-xl rounded-full opacity-0 group-hover/pass:opacity-100 transition-opacity" />
+                    <p className="text-sm uppercase tracking-widest text-blue-200 font-medium mb-1">Acesso Suporte</p>
+                    <div className="text-6xl md:text-7xl font-bold tracking-tighter font-mono text-white group-hover/pass:text-blue-200 transition-colors">
+                      {passwords.suporte || "----"}
                     </div>
-                    <div className="h-12 w-12 rounded-lg bg-yellow-100 dark:bg-yellow-900/30 flex items-center justify-center">
-                      <Clock className="h-6 w-6 text-yellow-600 dark:text-yellow-400" />
-                    </div>
+                    <p className="text-xs text-white/40 font-mono mt-2">ID: 8369 • AUTH_LVL_1</p>
                   </div>
-                  <Badge variant="outline" className="mt-3 badge-warning">
-                    Requer atenção
-                  </Badge>
-                </CardContent>
-              </Card>
 
-              {/* Concluídas */}
-              <Card className="hover:shadow-md transition-shadow">
-                <CardContent className="p-6">
-                  <div className="flex items-start justify-between">
-                    <div className="space-y-1">
-                      <p className="text-sm font-medium text-muted-foreground">Concluídas</p>
-                      <p className="text-3xl font-bold">{pendStats.pendenciasConcluidas}</p>
+                  {/* Eprosys Pass */}
+                  <div className="relative group/pass">
+                    <div className="absolute -inset-4 bg-purple-500/20 blur-xl rounded-full opacity-0 group-hover/pass:opacity-100 transition-opacity" />
+                    <p className="text-sm uppercase tracking-widest text-purple-200 font-medium mb-1">Acesso E-PROSYS</p>
+                    <div className="text-6xl md:text-7xl font-bold tracking-tighter font-mono text-white group-hover/pass:text-purple-200 transition-colors">
+                      {passwords.eprosys || "----"}
                     </div>
-                    <div className="h-12 w-12 rounded-lg bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
-                      <CheckCircle2 className="h-6 w-6 text-green-600 dark:text-green-400" />
-                    </div>
+                    <p className="text-xs text-white/40 font-mono mt-2">ID: 8597 • AUTH_LVL_ADMIN</p>
                   </div>
-                  <Badge variant="outline" className="mt-3 badge-success">
-                    Finalizadas
-                  </Badge>
-                </CardContent>
-              </Card>
-            </div>
-          ) : (
-            <div className="text-center py-8 text-muted-foreground">Carregando dados...</div>
-          )}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Quick Stats (Pendency Summary) */}
+          <div className="md:col-span-4 lg:col-span-3 flex flex-col gap-4">
+            <Card className="flex-1 bg-background/60 backdrop-blur-md border-l-4 border-l-amber-500 shadow-lg hover:shadow-xl transition-all">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">Pendências Em Aberto</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-4xl font-bold text-foreground">
+                  {pendStats ? pendStats.pendenciasEmAndamento : "--"}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">Requerem atenção imediata</p>
+              </CardContent>
+            </Card>
+
+            <Card className="flex-1 bg-background/60 backdrop-blur-md border-l-4 border-l-green-500 shadow-lg hover:shadow-xl transition-all">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-medium text-muted-foreground">Finalizadas Hoje</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-4xl font-bold text-foreground">
+                  {pendStats ? pendStats.pendenciasConcluidas : "--"}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">Produtividade da equipe</p>
+              </CardContent>
+            </Card>
+          </div>
         </div>
-      </section>
+      </header>
+
+      {/* Modules Grid */}
+      <main className="px-6 pb-20 max-w-7xl mx-auto w-full">
+        <h3 className="text-xl font-semibold mb-6 flex items-center gap-2">
+          <LayoutDashboard className="w-5 h-5 text-primary" />
+          Módulos do Sistema
+        </h3>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          {modules.map((module) => (
+            <Link href={module.href} key={module.href} legacyBehavior>
+              <a className="group block h-full">
+                <Card className="h-full transition-all duration-300 hover:scale-[1.02] hover:shadow-lg border-2 hover:border-primary/20 bg-card/50 backdrop-blur-sm">
+                  <CardContent className="p-6 flex items-start gap-4">
+                    <div className={`p-3 rounded-xl ${module.bg} ${module.color} group-hover:scale-110 transition-transform`}>
+                      <module.icon className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-lg text-foreground group-hover:text-primary transition-colors">
+                        {module.title}
+                      </h4>
+                      <p className="text-sm text-muted-foreground mt-1 leading-relaxed">
+                        {module.desc}
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              </a>
+            </Link>
+          ))}
+        </div>
+      </main>
+
       <HeroAnimation />
     </div>
   )
