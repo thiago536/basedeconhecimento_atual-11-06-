@@ -49,16 +49,16 @@ export function HeroAnimation() {
     const src = `${BASE_PATH}${frameNumber}.png`
 
     return (
-        // Ajustado tamanhos: w-[180px] mobile, md:w-[240px] tablet, lg:w-[300px] desktop
-        <div className="fixed bottom-0 right-[-10px] z-50 pointer-events-none w-[180px] md:w-[240px] lg:w-[300px]">
+        // ✅ Tamanhos Miniatura: w-[80px] a w-[120px] (Bem pequeno no canto)
+        <div className="fixed bottom-0 right-2 z-50 pointer-events-none w-[80px] md:w-[100px] lg:w-[120px]">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
                 src={src}
                 alt="Hero Animation"
                 className="w-full h-auto drop-shadow-2xl"
                 style={{
-                    // DICA: Se realmente não conseguir remover o fundo, descomente a linha abaixo para testar
-                    // mixBlendMode: "multiply", 
+                    // ✅ ATIVADO: mixBlendMode para remover fundo branco/bege
+                    mixBlendMode: "multiply",
                     maskImage: "linear-gradient(to bottom, black 90%, transparent 100%)",
                     WebkitMaskImage: "linear-gradient(to bottom, black 90%, transparent 100%)"
                 }}
