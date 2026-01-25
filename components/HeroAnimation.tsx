@@ -2,8 +2,8 @@
 
 import { useEffect, useState, useRef } from "react"
 
-const TOTAL_FRAMES = 82
-const FPS = 30
+const TOTAL_FRAMES = 59
+const FPS = 15 // Reduzido (era 30) para ficar mais natural e menos acelerado
 const FRAME_DURATION = 1000 / FPS
 const BASE_PATH = "https://oemducjiqvqacfokjzip.supabase.co/storage/v1/object/public/assets/hero-animation/frame_"
 
@@ -49,15 +49,18 @@ export function HeroAnimation() {
     const src = `${BASE_PATH}${frameNumber}.png`
 
     return (
-        <div className="fixed bottom-0 right-[-50px] z-50 pointer-events-none w-[300px] md:w-[400px] lg:w-[500px]">
+        // Ajustado tamanhos: w-[180px] mobile, md:w-[240px] tablet, lg:w-[300px] desktop
+        <div className="fixed bottom-0 right-[-10px] z-50 pointer-events-none w-[180px] md:w-[240px] lg:w-[300px]">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
                 src={src}
                 alt="Hero Animation"
                 className="w-full h-auto drop-shadow-2xl"
                 style={{
-                    maskImage: "linear-gradient(to bottom, black 80%, transparent 100%)",
-                    WebkitMaskImage: "linear-gradient(to bottom, black 80%, transparent 100%)"
+                    // DICA: Se realmente não conseguir remover o fundo, descomente a linha abaixo para testar
+                    // mixBlendMode: "multiply", 
+                    maskImage: "linear-gradient(to bottom, black 90%, transparent 100%)",
+                    WebkitMaskImage: "linear-gradient(to bottom, black 90%, transparent 100%)"
                 }}
             />
         </div>
