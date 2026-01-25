@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from "react"
 
 const TOTAL_FRAMES = 59
-const FPS = 15 // Reduzido (era 30) para ficar mais natural e menos acelerado
+const FPS = 15
 const FRAME_DURATION = 1000 / FPS
 const BASE_PATH = "https://oemducjiqvqacfokjzip.supabase.co/storage/v1/object/public/assets/hero-animation/frame_"
 
@@ -12,7 +12,6 @@ export function HeroAnimation() {
     const [imagesLoaded, setImagesLoaded] = useState(false)
     const frameRef = useRef<number>(0)
 
-    // Preload images
     useEffect(() => {
         let loadedCount = 0
         const images: HTMLImageElement[] = []
@@ -20,46 +19,40 @@ export function HeroAnimation() {
         for (let i = 0; i < TOTAL_FRAMES; i++) {
             const img = new Image()
             const frameNumber = i.toString().padStart(3, "0")
-            // 🔥 Cache Buster também no preload
+            // 🔥 ATENÇÃO: O '?v=3' aqui obriga a baixar a versão nova (sem fundo)
             img.src = `${BASE_PATH}${frameNumber}.png?v=3`
             img.onload = () => {
                 loadedCount++
-                if (loadedCount === TOTAL_FRAMES) {
-                    setImagesLoaded(true)
-                }
+                if (loadedCount === TOTAL_FRAMES) setImagesLoaded(true)
             }
+            img.onerror = () => console.warn(`Erro frame: ${frameNumber}`)
             images.push(img)
         }
     }, [])
 
-    // Animation loop
     useEffect(() => {
         if (!imagesLoaded) return
-
         const interval = setInterval(() => {
             frameRef.current = (frameRef.current + 1) % TOTAL_FRAMES
             setCurrentFrame(frameRef.current)
         }, FRAME_DURATION)
-
         return () => clearInterval(interval)
     }, [imagesLoaded])
 
     if (!imagesLoaded) return null
 
     const frameNumber = currentFrame.toString().padStart(3, "0")
-    const src = `${BASE_PATH}${frameNumber}.png`
+    // 🔥 Cache buster aqui também
+    const src = `${BASE_PATH}${frameNumber}.png?v=3`
 
     return (
-        // ✅ Tamanhos Miniatura: w-[80px] a w-[120px] (Bem pequeno no canto)
-        <div className="fixed bottom-0 right-2 z-50 pointer-events-none w-[80px] md:w-[100px] lg:w-[120px]">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
+        // ✅ Tamanhos Extra-Miniatura (60px - 90px)
+        <div className="fixed bottom-0 right-2 z-50 pointer-events-none w-[60px] md:w-[80px] lg:w-[90px]">
             <img
                 src={src}
                 alt="Hero Animation"
                 className="w-full h-auto drop-shadow-2xl"
                 style={{
-                    // ✅ ATIVADO: mixBlendMode para remover fundo branco/bege
-                    mixBlendMode: "multiply",
                     maskImage: "linear-gradient(to bottom, black 90%, transparent 100%)",
                     WebkitMaskImage: "linear-gradient(to bottom, black 90%, transparent 100%)"
                 }}
