@@ -20,7 +20,8 @@ export function HeroAnimation() {
         for (let i = 0; i < TOTAL_FRAMES; i++) {
             const img = new Image()
             const frameNumber = i.toString().padStart(3, "0")
-            img.src = `${BASE_PATH}${frameNumber}.png`
+            // 🔥 Cache Buster também no preload
+            img.src = `${BASE_PATH}${frameNumber}.png?v=3`
             img.onload = () => {
                 loadedCount++
                 if (loadedCount === TOTAL_FRAMES) {
