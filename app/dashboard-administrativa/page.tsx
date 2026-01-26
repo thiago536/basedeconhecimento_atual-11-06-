@@ -181,7 +181,7 @@ export default function DashboardAdministrativaPage() {
         }
     }
 
-    // ✅ IA PREDICT - BUSCA DIRETO DO SUPABASE
+    // ✅ IA PREDICT - BUSCA DIRETO DO SUPABASE (Compatível com Vercel)
     const fetchPrediction = async (tipo: 'horario' | 'semanal') => {
         try {
             const dataHoje = getDataBrasil();
