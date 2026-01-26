@@ -29,10 +29,11 @@ export async function updateSession(request: NextRequest) {
         }
     )
 
-    // IMPORTANT: DO NOT REMOVE auth.getUser()
+    // Using getSession instead of getUser for better Edge stability during debugging
     const {
-        data: { user },
-    } = await supabase.auth.getUser()
+        data: { session },
+    } = await supabase.auth.getSession()
+    const user = session?.user
 
     if (
         !user &&
