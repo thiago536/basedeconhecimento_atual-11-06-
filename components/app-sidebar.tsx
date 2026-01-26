@@ -18,6 +18,7 @@ import {
   Menu,
   MapPin,
   LayoutDashboard,
+  Monitor,
 } from "lucide-react"
 import { ModeToggle } from "@/components/mode-toggle"
 import { Separator } from "@/components/ui/separator"
@@ -32,13 +33,13 @@ const navItems = [
   { title: "Acessos", href: "/acessos", icon: <Key className="h-5 w-5" /> },
   { title: "Postos", href: "/postos", icon: <MapPin className="h-5 w-5" /> },
   {
-    title: "Dashboard Administrativa",
+    title: "Monitor Atendimento",
     href: "/dashboard-administrativa",
-    icon: <LayoutDashboard className="h-5 w-5" />,
+    icon: <Monitor className="h-5 w-5" />,
   },
   {
     title: "SPEDs",
-    href: "https://eprosyssped.vercel.app/",
+    href: "https://portalsped.vercel.app/",
     icon: <FileSpreadsheet className="h-5 w-5" />,
     external: true,
   },
