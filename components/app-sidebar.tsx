@@ -67,7 +67,11 @@ const useSidebar = () => {
 // --- Componente Principal do Sidebar ---
 export function AppSidebar() {
   const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(false)
   const isMobile = useIsMobile()
+  const pathname = usePathname()
+
+  if (pathname === "/login") return null
 
   return (
     <SidebarContext.Provider value={{ open, setOpen }}>
