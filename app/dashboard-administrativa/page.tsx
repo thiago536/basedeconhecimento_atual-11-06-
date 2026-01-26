@@ -6,7 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Progress } from "@/components/ui/progress"
-import { Activity, Clock, User, CheckCircle2, CalendarDays, RotateCcw, Search, X, MessageCircle, Wifi, WifiOff, Filter, TrendingUp, Users, Target, ChevronLeft, ChevronRight, AlertTriangle, Ghost, Calendar, Bell, Info, Sparkles, TrendingDown, BrainCircuit, Trophy, Flame, Zap, RefreshCw } from "lucide-react"
+import { Activity, Clock, User, CheckCircle2, CalendarDays, RotateCcw, Search, X, MessageCircle, Wifi, WifiOff, Filter, TrendingUp, Users, Target, ChevronLeft, ChevronRight, AlertTriangle, Ghost, Calendar, Bell, Info, Sparkles, TrendingDown, BrainCircuit, Trophy, Flame, Zap, RefreshCw, Star } from "lucide-react"
 import {
     PieChart,
     Pie,
@@ -56,6 +56,7 @@ interface Atendimento {
     updated_at: string | null
     duration_minutes: number
     status_visual: "Em andamento" | "Sucesso" | "Falha" | "Transferido"
+    avaliacao?: number // ⭐ Campo Novo
 }
 
 interface MonitorAtendente {
@@ -128,6 +129,7 @@ export default function DashboardAdministrativaPage() {
     const [viewMode, setViewMode] = useState<"Diário" | "Mensal">("Diário")
 
     const [showModal, setShowModal] = useState(false)
+    const [showClientModal, setShowClientModal] = useState(false) // ⭐ Modal Clientes
     const [showAlertsPanel, setShowAlertsPanel] = useState(false)
     const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null)
     const [searchTerm, setSearchTerm] = useState("")
@@ -510,6 +512,48 @@ export default function DashboardAdministrativaPage() {
         return { list: paginatedList, fullListLength: searchFiltered.length, totalPages, total: wrTotal, successRate: wrRate, tma: wrTma, chart: wrChart, motives: wrMotives, topClients }
     }, [data, selectedAgentId, searchTerm, currentPage, viewMode, dateFilter])
 
+    // 🧠 MAPA DE CLIENTES (Agregação Local)
+    const clientMapData = useMemo(() => {
+        const map = new Map<string, { nome: string, telefone: string, total: number, somaAvaliacao: number, qtdAvaliacao: number, lastDate: string }>();
+
+        data.forEach(d => {
+            if (!d.telefone || d.telefone.length < 8) return;
+            const key = d.telefone;
+            if (!map.has(key)) {
+                map.set(key, {
+                    nome: d.nome_cliente || "Cliente",
+                    telefone: d.telefone,
+                    total: 0,
+                    somaAvaliacao: 0,
+                    qtdAvaliacao: 0,
+                    lastDate: d.created_at
+                });
+            }
+            const c = map.get(key)!;
+            c.total++;
+            if (new Date(d.created_at) > new Date(c.lastDate)) {
+                c.lastDate = d.created_at;
+                if (d.nome_cliente && d.nome_cliente.length > c.nome.length) c.nome = d.nome_cliente;
+            }
+            if (d.avaliacao) {
+                c.somaAvaliacao += d.avaliacao;
+                c.qtdAvaliacao++;
+            }
+        });
+
+        const lista = Array.from(map.values()).map(c => ({
+            ...c,
+            media: c.qtdAvaliacao > 0 ? (c.somaAvaliacao / c.qtdAvaliacao).toFixed(1) : "N/A",
+            mediaNum: c.qtdAvaliacao > 0 ? (c.somaAvaliacao / c.qtdAvaliacao) : 0
+        }));
+
+        return {
+            topVolume: [...lista].sort((a, b) => b.total - a.total).slice(0, 10),
+            topAvaliacao: [...lista].filter(c => c.qtdAvaliacao > 0).sort((a, b) => b.mediaNum - a.mediaNum).slice(0, 5),
+            detratores: [...lista].filter(c => c.qtdAvaliacao > 0 && c.mediaNum <= 2.5).sort((a, b) => a.mediaNum - b.mediaNum).slice(0, 5)
+        };
+    }, [data]);
+
     const isToday = dateFilter === new Date().toISOString().split("T")[0] && viewMode === "Diário"
 
     return (
@@ -533,6 +577,10 @@ export default function DashboardAdministrativaPage() {
                             <span className="font-bold text-xs hidden md:inline">Ranking</span>
                         </button>
                     )}
+                    <button onClick={() => setShowClientModal(true)} className="bg-indigo-600 hover:bg-indigo-700 text-white p-2.5 rounded-xl shadow-sm transition-all flex items-center gap-2 font-bold text-xs uppercase tracking-wide group" title="Mapa de Clientes">
+                        <Users className="h-4 w-4 group-hover:scale-110 transition-transform" />
+                        <span className="hidden md:inline">Clientes</span>
+                    </button>
                     <button onClick={() => { fetchPrediction('semanal'); setShowPredictionModal(true); }} className="bg-purple-600 hover:bg-purple-700 text-white p-2.5 rounded-xl shadow-sm transition-all flex items-center gap-2 font-bold text-xs uppercase tracking-wide" title="Ver Previsão"><Sparkles className="h-4 w-4" /><span className="hidden md:inline">IA Predict</span></button>
                     <div className="relative">
                         <button onClick={() => setShowAlertsPanel(!showAlertsPanel)} className={`relative p-2.5 rounded-xl border transition-all ${activeAlerts.length > 0 ? 'bg-white border-red-200 text-red-600 hover:bg-red-50 shadow-sm' : 'bg-white border-slate-200 text-slate-400 hover:text-slate-600 shadow-sm'}`}>
@@ -860,6 +908,100 @@ export default function DashboardAdministrativaPage() {
                                 </div>
                                 <Card className="border-slate-200 shadow-sm bg-white overflow-hidden flex flex-col"><div className="p-4 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-center gap-4"><h3 className="font-bold text-slate-800 flex items-center gap-2"><Filter className="h-4 w-4" /> Detalhamento de Atendimentos</h3><div className="relative w-full sm:w-64"><Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" /><input type="text" placeholder="Buscar cliente, telefone..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-9 pr-4 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20" /></div></div><div className="overflow-x-auto"><Table><TableHeader><TableRow className="bg-slate-50/50 hover:bg-slate-50/50"><TableHead className="font-bold text-slate-700">Data/Hora</TableHead><TableHead className="font-bold text-slate-700">Cliente</TableHead>{!selectedAgentId && <TableHead className="font-bold text-slate-700">Atendente</TableHead>}<TableHead className="font-bold text-slate-700">Motivo</TableHead><TableHead className="font-bold text-slate-700 text-center">Status</TableHead><TableHead className="font-bold text-slate-700 text-right">Duração</TableHead></TableRow></TableHeader><TableBody>{warRoomData.list.map((ticket) => (<TableRow key={ticket.id} className="hover:bg-slate-50 transition-colors"><TableCell className="font-mono text-xs text-slate-500">{viewMode === "Mensal" ? new Date(ticket.created_at).toLocaleDateString('pt-BR') : new Date(ticket.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</TableCell><TableCell><div className="font-medium text-slate-900">{ticket.nome_cliente}</div><div className="text-xs text-slate-400">{ticket.telefone}</div></TableCell>{!selectedAgentId && (<TableCell className="text-xs text-slate-600">{ticket.id_atendente}</TableCell>)}<TableCell>{ticket.motivo ? (<Badge variant="secondary" className="text-[10px]">{ticket.motivo}</Badge>) : (<span className="text-xs text-slate-400 italic">-</span>)}</TableCell><TableCell className="text-center"><Badge variant={ticket.status_visual === "Sucesso" ? "default" : ticket.status_visual === "Falha" ? "destructive" : "secondary"} className="text-[10px]">{ticket.status_visual}</Badge></TableCell><TableCell className="text-right text-xs font-mono text-slate-600">{ticket.duration_minutes} min</TableCell></TableRow>))}</TableBody></Table></div>{warRoomData.totalPages > 1 && (<div className="p-4 border-t border-slate-100 flex justify-between items-center"><span className="text-xs text-slate-500">{warRoomData.fullListLength} registros totais</span><div className="flex gap-2"><button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="p-1.5 rounded border border-slate-200 disabled:opacity-30 hover:bg-slate-50"><ChevronLeft className="h-4 w-4" /></button><span className="text-xs text-slate-600 px-3 py-1.5">Página {currentPage} de {warRoomData.totalPages}</span><button onClick={() => setCurrentPage(p => Math.min(warRoomData.totalPages, p + 1))} disabled={currentPage === warRoomData.totalPages} className="p-1.5 rounded border border-slate-200 disabled:opacity-30 hover:bg-slate-50"><ChevronRight className="h-4 w-4" /></button></div></div>)}</Card>
                             </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+            {/* MODAL MAPA DE CLIENTES */}
+            {showClientModal && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in">
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
+                        <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+                            <div>
+                                <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-3">
+                                    <Users className="h-8 w-8 text-indigo-600" />
+                                    Mapa de Clientes ({viewMode})
+                                </h2>
+                                <p className="text-slate-500 text-sm mt-1">Análise de volume e satisfação no período selecionado</p>
+                            </div>
+                            <button onClick={() => setShowClientModal(false)} className="p-2 hover:bg-slate-200 rounded-full transition-colors"><X className="h-6 w-6 text-slate-500" /></button>
+                        </div>
+
+                        <div className="p-6 overflow-y-auto bg-slate-50/30">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                {/* TOP VOLUME */}
+                                <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+                                    <h3 className="font-bold text-slate-700 mb-4 flex items-center gap-2">
+                                        <span className="bg-blue-100 text-blue-700 p-1.5 rounded-lg"><TrendingUp className="h-5 w-5" /></span>
+                                        Top Volume
+                                    </h3>
+                                    <div className="space-y-3">
+                                        {clientMapData.topVolume.map((c, i) => (
+                                            <div key={i} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg hover:bg-blue-50 transition-colors">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="bg-blue-600 text-white w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm">#{i + 1}</div>
+                                                    <div>
+                                                        <p className="font-bold text-slate-800 text-sm truncate w-32 md:w-40" title={c.nome}>{c.nome}</p>
+                                                        <p className="text-xs text-slate-500">{c.telefone}</p>
+                                                    </div>
+                                                </div>
+                                                <div className="text-right">
+                                                    <p className="font-bold text-blue-600 text-lg">{c.total}</p>
+                                                    <p className="text-[10px] text-slate-400">contatos</p>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {/* TOP AVALIAÇÃO */}
+                                <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+                                    <h3 className="font-bold text-slate-700 mb-4 flex items-center gap-2">
+                                        <span className="bg-emerald-100 text-emerald-700 p-1.5 rounded-lg"><Star className="h-5 w-5" /></span>
+                                        Melhores Avaliados
+                                    </h3>
+                                    <div className="space-y-3">
+                                        {clientMapData.topAvaliacao.length === 0 ? <p className="text-sm text-slate-400 italic text-center p-4">Sem avaliações no período</p> :
+                                            clientMapData.topAvaliacao.map((c, i) => (
+                                                <div key={i} className="flex items-center justify-between p-3 bg-emerald-50/50 rounded-lg border-l-4 border-emerald-400">
+                                                    <div>
+                                                        <p className="font-bold text-slate-800 text-sm truncate w-32 md:w-36">{c.nome}</p>
+                                                        <div className="flex items-center gap-1 mt-1">
+                                                            <div className="flex text-amber-400"><Star className="h-3 w-3 fill-amber-400" /></div>
+                                                            <span className="text-xs font-bold text-slate-700">{c.media}</span>
+                                                            <span className="text-[10px] text-slate-500">({c.qtdAvaliacao})</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                    </div>
+                                </div>
+
+                                {/* DETRATORES */}
+                                <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+                                    <h3 className="font-bold text-slate-700 mb-4 flex items-center gap-2">
+                                        <span className="bg-red-100 text-red-700 p-1.5 rounded-lg"><AlertTriangle className="h-5 w-5" /></span>
+                                        Atenção (Nota Baixa)
+                                    </h3>
+                                    <div className="space-y-3">
+                                        {clientMapData.detratores.length === 0 ? <div className="p-4 text-center bg-green-50 rounded-lg text-green-700 text-xs font-bold border border-green-100 flex flex-col items-center gap-2"><CheckCircle2 className="h-6 w-6" />Nenhuma nota crítica!</div> :
+                                            clientMapData.detratores.map((c, i) => (
+                                                <div key={i} className="flex items-center justify-between p-3 bg-red-50 rounded-lg border-l-4 border-red-400">
+                                                    <div>
+                                                        <p className="font-bold text-slate-800 text-sm truncate w-32 md:w-36">{c.nome}</p>
+                                                        <div className="flex items-center gap-1 mt-1">
+                                                            <Star className="h-3 w-3 text-red-400 fill-red-400" />
+                                                            <span className="text-xs font-bold text-red-700">{c.media}</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end">
+                            <button onClick={() => setShowClientModal(false)} className="px-6 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg font-bold transition-colors">Fechar</button>
                         </div>
                     </div>
                 </div>
