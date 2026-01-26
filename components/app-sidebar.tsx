@@ -16,10 +16,11 @@ import {
   X,
   Lock,
   Menu,
-  MapPin,
   LayoutDashboard,
   Monitor,
+  LogOut,
 } from "lucide-react"
+import { createClient } from "@/utils/supabase/client"
 import { ModeToggle } from "@/components/mode-toggle"
 import { Separator } from "@/components/ui/separator"
 import { Button } from "@/components/ui/button"
@@ -275,6 +276,12 @@ const SidebarFooter = ({
     setDailyPassword(password)
   }, [])
 
+  const handleSignOut = async () => {
+    const supabase = createClient()
+    await supabase.auth.signOut()
+    window.location.href = "/login"
+  }
+
   return (
     <div className="p-3 border-t">
       <AnimatePresence>
@@ -292,13 +299,22 @@ const SidebarFooter = ({
               </div>
             </div>
             <Separator className="mb-4" />
-            <div className="flex items-center gap-3 p-2 bg-blue-50 dark:bg-blue-900/50 rounded-lg">
+            <div className="flex items-center gap-3 p-2 bg-blue-50 dark:bg-blue-900/50 rounded-lg mb-2">
               <Lock className="h-5 w-5 text-blue-600" />
               <div>
                 <div className="text-xs text-blue-700 dark:text-blue-300 font-medium">Senha diária</div>
                 <div className="text-lg font-bold text-blue-800 dark:text-blue-200">{dailyPassword}</div>
               </div>
             </div>
+
+            <Button
+              variant="ghost"
+              className="w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30 gap-2"
+              onClick={handleSignOut}
+            >
+              <LogOut className="h-4 w-4" />
+              <span>Sair</span>
+            </Button>
           </motion.div>
         )}
       </AnimatePresence>
