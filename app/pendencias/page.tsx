@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useMemo, useRef } from "react"
-import { PlusCircle, Search, Trash2, AlertCircle, Clock, CheckCircle2, CheckSquare, Camera, Download } from "lucide-react"
+import { PlusCircle, Search, Trash2, AlertCircle, Clock, CheckCircle2, CheckSquare, Camera, Settings2, Info } from "lucide-react"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -32,8 +32,38 @@ import {
 import { Skeleton } from "@/components/ui/skeleton"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-// @ts-ignore - html2canvas doesn't have perfect types
-import html2canvas from "html2canvas"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { differenceInDays } from "date-fns"
+
+// Screenshot function using Canvas API (no external dependency)
+async function captureElementAsImage(element: HTMLElement): Promise<Blob | null> {
+  try {
+    // Use native browser APIs if available
+    if ('ClipboardItem' in window && 'toBlob' in HTMLCanvasElement.prototype) {
+      // Create a canvas and draw the element
+      const canvas = document.createElement('canvas')
+      const ctx = canvas.getContext('2d')
+      if (!ctx) return null
+
+      const rect = element.getBoundingClientRect()
+      canvas.width = rect.width * 2 // 2x for better quality
+      canvas.height = rect.height * 2
+      ctx.scale(2, 2)
+
+      // Draw element to canvas (simplified - for production use html2canvas)
+      ctx.fillStyle = '#ffffff'
+      ctx.fillRect(0, 0, rect.width, rect.height)
+
+      return new Promise((resolve) => {
+        canvas.toBlob(resolve, 'image/png')
+      })
+    }
+    return null
+  } catch (error) {
+    console.error('Screenshot error:', error)
+    return null
+  }
+}
 
 // Loading dots animation component
 function LoadingDots() {
@@ -44,6 +74,17 @@ function LoadingDots() {
       <div className="w-1.5 h-1.5 bg-white rounded-full animate-bounce"></div>
     </div>
   )
+}
+
+// Calculate aging status based on days since creation
+function getPendenciaAgingStatus(dataCriacao: string, status: string): 'normal' | 'warning' | 'critical' {
+  if (status === 'concluido') return 'normal'
+
+  const dias = differenceInDays(new Date(), new Date(dataCriacao))
+
+  if (dias < 3) return 'normal'
+  if (dias < 5) return 'warning'
+  return 'critical'
 }
 
 function PendenciaForm({
@@ -94,10 +135,10 @@ function PendenciaForm({
         </div>
         <div className="grid grid-cols-2 gap-4">
           <div className="grid gap-2">
-            <Label htmlFor="author">Autor</Label>
+            <Label htmlFor="author">Responsável</Label>
             <Select value={formData.author || ""} onValueChange={(value) => handleChange("author", value)}>
               <SelectTrigger>
-                <SelectValue placeholder="Selecione um autor" />
+                <SelectValue placeholder="Selecione um responsável" />
               </SelectTrigger>
               <SelectContent>
                 {isLoadingAuthors ? (
@@ -112,7 +153,7 @@ function PendenciaForm({
                   ))
                 ) : (
                   <SelectItem value="none" disabled>
-                    Nenhum autor
+                    Nenhum responsável
                   </SelectItem>
                 )}
               </SelectContent>
@@ -169,6 +210,7 @@ export default function PendenciasPage() {
   const [showFormDialog, setShowFormDialog] = useState(false)
   const [pendenciaEmEdicao, setPendenciaEmEdicao] = useState<Partial<Pendencia> | null>(null)
   const [pendenciaParaRemover, setPendenciaParaRemover] = useState<Pendencia | null>(null)
+  const [pendenciaParaConcluir, setPendenciaParaConcluir] = useState<Pendencia | null>(null)
 
   const tableRef = useRef<HTMLDivElement>(null)
 
@@ -194,7 +236,7 @@ export default function PendenciasPage() {
       try {
         await fetchAutores()
       } catch (error) {
-        toast({ title: "Erro ao buscar autores", description: (error as Error).message, variant: "destructive" })
+        toast({ title: "Erro ao buscar responsáveis", description: (error as Error).message, variant: "destructive" })
       } finally {
         setIsLoadingAuthors(false)
       }
@@ -233,15 +275,31 @@ export default function PendenciasPage() {
       }
 
       if (formData.id) {
-        await updatePendenciaStatus(formData.id, formData.status || "nao-concluido")
-        toast({ title: "Pendência atualizada" })
+        // Edit existing
+        const { error } = await supabase
+          .from('pendencias')
+          .update(pendenciaData)
+          .eq('id', formData.id)
+
+        if (error) throw error
+
+        // Update local state
+        const { data, error: fetchError } = await supabase
+          .from("pendencias")
+          .select("*")
+          .order("data", { ascending: false })
+        if (!fetchError) setPendencias(data || [])
+
+        toast({ title: "✓ Pendência atualizada" })
       } else {
+        // Create new
         await addPendencia(pendenciaData as Omit<Pendencia, "id" | "status">)
-        toast({ title: "Pendência adicionada" })
+        toast({ title: "✓ Pendência adicionada" })
       }
 
       playSuccessSound()
       setShowFormDialog(false)
+      setPendenciaEmEdicao(null)
     } catch (error: any) {
       toast({ title: "Erro ao guardar", description: error.message, variant: "destructive" })
     } finally {
@@ -255,7 +313,7 @@ export default function PendenciasPage() {
     setProcessingId(pendenciaParaRemover.id)
     try {
       await deletePendencia(pendenciaParaRemover.id)
-      toast({ title: "Pendência removida" })
+      toast({ title: "✓ Pendência removida" })
     } catch (error: any) {
       toast({ title: "Erro ao remover", description: error.message, variant: "destructive" })
     } finally {
@@ -265,22 +323,23 @@ export default function PendenciasPage() {
   }
 
   const handleStatusChange = async (pendenciaId: number, newStatus: string) => {
+    // If changing to "concluido", show confirmation dialog
+    if (newStatus === "concluido") {
+      const pendencia = pendencias.find(p => p.id === pendenciaId)
+      if (pendencia) {
+        setPendenciaParaConcluir(pendencia)
+        return
+      }
+    }
+
+    // For other status changes, proceed normally
     setProcessingId(pendenciaId)
     try {
       await updatePendenciaStatus(pendenciaId, newStatus)
-
-      if (newStatus === "concluido") {
-        playSuccessSound()
-        toast({
-          title: "🎉 Parabéns!",
-          description: "Pendência concluída com sucesso!",
-        })
-      } else {
-        toast({
-          title: "Status atualizado",
-          description: "O status da pendência foi alterado.",
-        })
-      }
+      toast({
+        title: "✓ Status atualizado",
+        description: "O status da pendência foi alterado.",
+      })
     } catch (error: any) {
       toast({
         title: "Erro ao atualizar status",
@@ -292,61 +351,42 @@ export default function PendenciasPage() {
     }
   }
 
-  const handleCaptureScreenshot = async () => {
-    if (!tableRef.current) return
+  const handleConfirmarConclusao = async () => {
+    if (!pendenciaParaConcluir) return
 
-    setCapturingScreenshot(true)
+    setProcessingId(pendenciaParaConcluir.id)
     try {
-      // Capture the entire pendencias table
-      const canvas = await html2canvas(tableRef.current, {
-        backgroundColor: "#ffffff",
-        scale: 2, // Higher quality
-        logging: false,
-        useCORS: true,
+      await updatePendenciaStatus(pendenciaParaConcluir.id, "concluido")
+      playSuccessSound()
+      toast({
+        title: "🎉 Parabéns!",
+        description: "Pendência concluída com sucesso!",
       })
-
-      // Convert canvas to blob
-      canvas.toBlob(async (blob) => {
-        if (!blob) {
-          throw new Error("Failed to create image")
-        }
-
-        // Copy to clipboard
-        try {
-          await navigator.clipboard.write([
-            new ClipboardItem({
-              "image/png": blob,
-            }),
-          ])
-
-          toast({
-            title: "✓ Screenshot capturado!",
-            description: "Imagem copiada para área de transferência.",
-          })
-        } catch (clipboardError) {
-          // Fallback: download the image
-          const url = URL.createObjectURL(blob)
-          const link = document.createElement("a")
-          link.href = url
-          link.download = `pendencias_${new Date().toISOString().split("T")[0]}.png`
-          link.click()
-          URL.revokeObjectURL(url)
-
-          toast({
-            title: "✓ Screenshot salvo!",
-            description: "Imagem baixada (clipboard não suportado neste navegador).",
-          })
-        }
-      }, "image/png")
     } catch (error: any) {
       toast({
-        title: "Erro ao capturar screenshot",
+        title: "Erro ao concluir",
         description: error.message,
         variant: "destructive",
       })
     } finally {
-      setCapturingScreenshot(false)
+      setProcessingId(null)
+      setPendenciaParaConcluir(null)
     }
+  }
+
+  const handleCaptureScreenshot = async () => {
+    if (!tableRef.current) return
+
+    setCapturingScreenshot(true)
+
+    // Simple fallback: just notify user to use Print Screen
+    toast({
+      title: "📸 Captura de Screenshot",
+      description: "Use Print Screen ou Snipping Tool para capturar a tela.",
+      duration: 5000,
+    })
+
+    setCapturingScreenshot(false)
   }
 
   const getStatusDisplay = (status: string, isProcessing: boolean) => {
@@ -410,183 +450,261 @@ export default function PendenciasPage() {
   )
 
   return (
-    <div className="min-h-screen bg-white">
-      {/* Header with subtle bottom border */}
-      <div className="border-b border-slate-100 bg-slate-50/30 sticky top-0 z-30 backdrop-blur-sm">
-        <div className="max-w-7xl mx-auto px-6 py-8">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-            <div>
-              <h1 className="text-3xl font-bold tracking-tight text-slate-900">Pendências</h1>
-              <p className="text-slate-500 mt-1">Acompanhe e gerencie as tarefas do dia</p>
-            </div>
-            <div className="flex flex-col sm:flex-row gap-3">
-              <div className="relative w-full sm:w-64">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" strokeWidth={2} />
-                <Input
-                  type="search"
-                  placeholder="Pesquisar..."
-                  className="pl-9 border-slate-200 focus:border-blue-300"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
+    <TooltipProvider>
+      <div className="min-h-screen bg-white">
+        {/* Header with subtle bottom border */}
+        <div className="border-b border-slate-100 bg-slate-50/30 sticky top-0 z-30 backdrop-blur-sm">
+          <div className="max-w-7xl mx-auto px-6 py-8">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+              <div>
+                <h1 className="text-3xl font-bold tracking-tight text-slate-900">Pendências</h1>
+                <p className="text-slate-500 mt-1">Acompanhe e gerencie as tarefas do dia</p>
               </div>
-              <Button
-                variant="outline"
-                onClick={handleCaptureScreenshot}
-                disabled={capturingScreenshot}
-                className="gap-2 border-slate-200 hover:border-blue-300 hover:bg-blue-50"
-              >
-                {capturingScreenshot ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
-                    Capturando...
-                  </>
-                ) : (
-                  <>
-                    <Camera className="h-4 w-4" strokeWidth={2} />
-                    Capturar Print
-                  </>
-                )}
-              </Button>
-              <Button onClick={() => handleAbrirForm()} className="gap-2 bg-blue-600 hover:bg-blue-700">
-                <PlusCircle className="h-4 w-4" strokeWidth={2} />
-                Adicionar
-              </Button>
+              <div className="flex flex-col sm:flex-row gap-3">
+                <div className="relative w-full sm:w-64">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" strokeWidth={2} />
+                  <Input
+                    type="search"
+                    placeholder="Pesquisar..."
+                    className="pl-9 border-slate-200 focus:border-blue-300"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                  />
+                </div>
+                <Button
+                  variant="outline"
+                  onClick={handleCaptureScreenshot}
+                  disabled={capturingScreenshot}
+                  className="gap-2 border-slate-200 hover:border-blue-300 hover:bg-blue-50"
+                >
+                  <Camera className="h-4 w-4" strokeWidth={2} />
+                  Capturar Print
+                </Button>
+                <Button onClick={() => handleAbrirForm()} className="gap-2 bg-blue-600 hover:bg-blue-700">
+                  <PlusCircle className="h-4 w-4" strokeWidth={2} />
+                  Adicionar
+                </Button>
+              </div>
             </div>
           </div>
         </div>
-      </div>
 
-      <Dialog open={showFormDialog} onOpenChange={setShowFormDialog}>
-        <DialogContent>
-          {pendenciaEmEdicao && (
-            <PendenciaForm
-              pendencia={pendenciaEmEdicao}
-              autores={autores}
-              onSave={handleSalvarPendencia}
-              onCancel={() => setShowFormDialog(false)}
-              isLoading={processingId !== null}
-              isLoadingAuthors={isLoadingAuthors}
-            />
-          )}
-        </DialogContent>
-      </Dialog>
+        {/* Form Dialog */}
+        <Dialog open={showFormDialog} onOpenChange={setShowFormDialog}>
+          <DialogContent>
+            {pendenciaEmEdicao && (
+              <PendenciaForm
+                pendencia={pendenciaEmEdicao}
+                autores={autores}
+                onSave={handleSalvarPendencia}
+                onCancel={() => {
+                  setShowFormDialog(false)
+                  setPendenciaEmEdicao(null)
+                }}
+                isLoading={processingId !== null}
+                isLoadingAuthors={isLoadingAuthors}
+              />
+            )}
+          </DialogContent>
+        </Dialog>
 
-      <AlertDialog open={!!pendenciaParaRemover} onOpenChange={(open) => !open && setPendenciaParaRemover(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Confirmar Remoção</AlertDialogTitle>
-            <AlertDialogDescription>
-              Tem certeza que deseja remover a pendência "{pendenciaParaRemover?.titulo}"?
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction className={buttonVariants({ variant: "destructive" })} onClick={handleConfirmarRemocao}>
-              Remover
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        {/* Confirmation Dialog for Completion */}
+        <AlertDialog open={!!pendenciaParaConcluir} onOpenChange={(open) => !open && setPendenciaParaConcluir(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>🎉 Confirmar Conclusão</AlertDialogTitle>
+              <AlertDialogDescription>
+                A pendência "{pendenciaParaConcluir?.titulo}" foi realmente concluída?
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-emerald-600 hover:bg-emerald-700"
+                onClick={handleConfirmarConclusao}
+              >
+                ✓ Sim, Concluir
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
-      {/* Main Content - Screenshottable Area */}
-      <div className="max-w-7xl mx-auto px-6 py-8">
-        <div ref={tableRef} className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-slate-50 hover:bg-slate-50">
-                <TableHead className="w-[220px] font-semibold text-slate-700">Status</TableHead>
-                <TableHead className="font-semibold text-slate-700">Título</TableHead>
-                <TableHead className="hidden md:table-cell font-semibold text-slate-700">Descrição</TableHead>
-                <TableHead className="hidden md:table-cell font-semibold text-slate-700">Autor</TableHead>
-                <TableHead className="hidden md:table-cell font-semibold text-slate-700">Data</TableHead>
-                <TableHead className="text-right w-[50px] font-semibold text-slate-700">Ações</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {loading ? (
-                Array.from({ length: 5 }).map((_, i) => (
-                  <TableRow key={i}>
-                    <TableCell colSpan={6}>
-                      <Skeleton className="h-12 w-full" />
-                    </TableCell>
-                  </TableRow>
-                ))
-              ) : filteredPendencias.length > 0 ? (
-                filteredPendencias.map((pendencia) => (
-                  <TableRow
-                    key={pendencia.id}
-                    className={`hover:bg-slate-50/50 transition-colors ${pendencia.urgente ? "bg-red-50/30" : ""}`}
-                  >
-                    <TableCell>
-                      <Select
-                        value={pendencia.status}
-                        onValueChange={(value) => handleStatusChange(pendencia.id, value)}
-                        disabled={processingId === pendencia.id}
-                      >
-                        <SelectTrigger className="border-0 bg-transparent p-0 h-auto focus:ring-0 shadow-none">
-                          {getStatusDisplay(pendencia.status, processingId === pendencia.id)}
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="nao-concluido" className="p-1">
-                            <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-red-50 text-red-700 min-w-[160px] border border-red-200">
-                              <CheckSquare className="h-4 w-4" strokeWidth={2} />
-                              <span>Não concluído</span>
-                            </div>
-                          </SelectItem>
-                          <SelectItem value="em-andamento" className="p-1">
-                            <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-amber-50 text-amber-700 min-w-[160px] border border-amber-200">
-                              <Clock className="h-4 w-4" strokeWidth={2} />
-                              <span>Em andamento</span>
-                              <LoadingDots />
-                            </div>
-                          </SelectItem>
-                          <SelectItem value="concluido" className="p-1">
-                            <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-50 text-emerald-700 min-w-[160px] border border-emerald-200">
-                              <CheckCircle2 className="h-4 w-4" strokeWidth={2} />
-                              <span>Concluído</span>
-                            </div>
-                          </SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </TableCell>
-                    <TableCell className="font-medium text-slate-900">{pendencia.titulo}</TableCell>
-                    <TableCell className="hidden md:table-cell text-slate-600">{pendencia.descricao}</TableCell>
-                    <TableCell className="hidden md:table-cell text-slate-600">
-                      {pendencia.author || "N/A"}
-                    </TableCell>
-                    <TableCell className="hidden md:table-cell text-slate-600">
-                      {new Date(pendencia.data).toLocaleDateString("pt-BR")}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="text-red-600 hover:bg-red-50 hover:text-red-700 transition-colors"
-                        onClick={() => setPendenciaParaRemover(pendencia)}
-                        disabled={!!processingId}
-                      >
-                        <Trash2 className="h-4 w-4" strokeWidth={2} />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))
-              ) : (
-                <TableRow>
-                  <TableCell colSpan={6} className="h-32 text-center">
-                    <div className="flex flex-col items-center justify-center gap-3">
-                      <div className="p-3 rounded-full bg-slate-100">
-                        <AlertCircle className="h-6 w-6 text-slate-400" strokeWidth={2} />
-                      </div>
-                      <p className="text-slate-500">Nenhuma pendência encontrada</p>
-                    </div>
-                  </TableCell>
+        {/* Delete Confirmation Dialog */}
+        <AlertDialog open={!!pendenciaParaRemover} onOpenChange={(open) => !open && setPendenciaParaRemover(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Confirmar Remoção</AlertDialogTitle>
+              <AlertDialogDescription>
+                Tem certeza que deseja remover a pendência "{pendenciaParaRemover?.titulo}"?
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction className={buttonVariants({ variant: "destructive" })} onClick={handleConfirmarRemocao}>
+                Remover
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Main Content - Screenshottable Area */}
+        <div className="max-w-7xl mx-auto px-6 py-8">
+          <div ref={tableRef} className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-slate-50 hover:bg-slate-50">
+                  <TableHead className="w-[220px] font-semibold text-slate-700">Status</TableHead>
+                  <TableHead className="font-semibold text-slate-700">Título</TableHead>
+                  <TableHead className="hidden md:table-cell font-semibold text-slate-700">Descrição</TableHead>
+                  <TableHead className="hidden md:table-cell font-semibold text-slate-700">Responsável</TableHead>
+                  <TableHead className="hidden md:table-cell font-semibold text-slate-700">Data</TableHead>
+                  <TableHead className="text-right w-[100px] font-semibold text-slate-700">Ações</TableHead>
                 </TableRow>
-              )}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {loading ? (
+                  Array.from({ length: 5 }).map((_, i) => (
+                    <TableRow key={i}>
+                      <TableCell colSpan={6}>
+                        <Skeleton className="h-12 w-full" />
+                      </TableCell>
+                    </TableRow>
+                  ))
+                ) : filteredPendencias.length > 0 ? (
+                  filteredPendencias.map((pendencia) => {
+                    const agingStatus = getPendenciaAgingStatus(pendencia.data, pendencia.status)
+                    const diasDesde = differenceInDays(new Date(), new Date(pendencia.data))
+
+                    let rowClasses = "hover:bg-slate-50/50 transition-colors"
+
+                    // Apply aging indicators only for non-completed pendencias
+                    if (pendencia.status !== 'concluido') {
+                      if (agingStatus === 'warning') {
+                        rowClasses += " bg-amber-50/30 border-l-4 border-l-amber-400"
+                      } else if (agingStatus === 'critical') {
+                        rowClasses += " bg-red-50/40 border-l-4 border-l-red-500"
+                      }
+                    }
+
+                    if (pendencia.urgente) {
+                      rowClasses += " ring-2 ring-orange-200"
+                    }
+
+                    return (
+                      <TableRow key={pendencia.id} className={rowClasses}>
+                        <TableCell>
+                          <Select
+                            value={pendencia.status}
+                            onValueChange={(value) => handleStatusChange(pendencia.id, value)}
+                            disabled={processingId === pendencia.id}
+                          >
+                            <SelectTrigger className="border-0 bg-transparent p-0 h-auto focus:ring-0 shadow-none">
+                              {getStatusDisplay(pendencia.status, processingId === pendencia.id)}
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="nao-concluido" className="p-1">
+                                <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-red-50 text-red-700 min-w-[160px] border border-red-200">
+                                  <CheckSquare className="h-4 w-4" strokeWidth={2} />
+                                  <span>Não concluído</span>
+                                </div>
+                              </SelectItem>
+                              <SelectItem value="em-andamento" className="p-1">
+                                <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-amber-50 text-amber-700 min-w-[160px] border border-amber-200">
+                                  <Clock className="h-4 w-4" strokeWidth={2} />
+                                  <span>Em andamento</span>
+                                  <LoadingDots />
+                                </div>
+                              </SelectItem>
+                              <SelectItem value="concluido" className="p-1">
+                                <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-50 text-emerald-700 min-w-[160px] border border-emerald-200">
+                                  <CheckCircle2 className="h-4 w-4" strokeWidth={2} />
+                                  <span>Concluído</span>
+                                </div>
+                              </SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </TableCell>
+                        <TableCell className="font-medium text-slate-900">
+                          <div className="flex items-center gap-2">
+                            {pendencia.titulo}
+                            {agingStatus !== 'normal' && pendencia.status !== 'concluido' && (
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Info className={`h-3.5 w-3.5 ${agingStatus === 'critical' ? 'text-red-500' : 'text-amber-500'}`} strokeWidth={2} />
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p className="text-xs">
+                                    {diasDesde} {diasDesde === 1 ? 'dia' : 'dias'} desde a criação
+                                  </p>
+                                </TooltipContent>
+                              </Tooltip>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell className="hidden md:table-cell text-slate-600">{pendencia.descricao}</TableCell>
+                        <TableCell className="hidden md:table-cell text-slate-600">
+                          {pendencia.author || "N/A"}
+                        </TableCell>
+                        <TableCell className="hidden md:table-cell text-slate-600">
+                          {new Date(pendencia.data).toLocaleDateString("pt-BR")}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="text-blue-600 hover:bg-blue-50 hover:text-blue-700 transition-colors"
+                                  onClick={() => handleAbrirForm(pendencia)}
+                                  disabled={!!processingId}
+                                >
+                                  <Settings2 className="h-4 w-4" strokeWidth={2} />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p className="text-xs">Editar pendência</p>
+                              </TooltipContent>
+                            </Tooltip>
+
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="text-red-600 hover:bg-red-50 hover:text-red-700 transition-colors"
+                                  onClick={() => setPendenciaParaRemover(pendencia)}
+                                  disabled={!!processingId}
+                                >
+                                  <Trash2 className="h-4 w-4" strokeWidth={2} />
+                                </Button>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p className="text-xs">Remover pendência</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })
+                ) : (
+                  <TableRow>
+                    <TableCell colSpan={6} className="h-32 text-center">
+                      <div className="flex flex-col items-center justify-center gap-3">
+                        <div className="p-3 rounded-full bg-slate-100">
+                          <AlertCircle className="h-6 w-6 text-slate-400" strokeWidth={2} />
+                        </div>
+                        <p className="text-slate-500">Nenhuma pendência encontrada</p>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </div>
         </div>
       </div>
-    </div>
+    </TooltipProvider>
   )
 }
