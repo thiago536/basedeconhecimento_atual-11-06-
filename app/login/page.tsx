@@ -33,8 +33,8 @@ export default function LoginPage() {
                 throw error
             }
 
-            router.push("/")
-            router.refresh()
+            // Force a hard navigation to ensure cookies are sent to the server for middleware verification
+            window.location.href = "/"
         } catch (err: any) {
             setError(err.message || "Erro ao fazer login")
         } finally {
