@@ -16,6 +16,7 @@ import {
   X,
   Lock,
   Menu,
+  MapPin,
   LayoutDashboard,
   Monitor,
   LogOut,
