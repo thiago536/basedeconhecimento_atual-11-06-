@@ -512,40 +512,70 @@ export default function DashboardAdministrativaPage() {
         return { list: paginatedList, fullListLength: searchFiltered.length, totalPages, total: wrTotal, successRate: wrRate, tma: wrTma, chart: wrChart, motives: wrMotives, topClients }
     }, [data, selectedAgentId, searchTerm, currentPage, viewMode, dateFilter])
 
-    // 🧠 MAPA DE CLIENTES (Agregação Local)
+    // 🧠 MAPA DE CLIENTES (Agregação Local Melhorada)
     const clientMapData = useMemo(() => {
-        const map = new Map<string, { nome: string, telefone: string, total: number, somaAvaliacao: number, qtdAvaliacao: number, lastDate: string }>();
+        const map = new Map<string, {
+            nome: string,
+            telefone: string,
+            total: number,
+            somaAvaliacao: number,
+            qtdAvaliacao: number,
+            lastDate: string,
+            lastAgent: string,
+            motives: Record<string, number>
+        }>();
 
         data.forEach(d => {
             if (!d.telefone || d.telefone.length < 8) return;
             const key = d.telefone;
+
             if (!map.has(key)) {
                 map.set(key, {
-                    nome: d.nome_cliente || "Cliente",
+                    nome: "Cliente",
                     telefone: d.telefone,
                     total: 0,
                     somaAvaliacao: 0,
                     qtdAvaliacao: 0,
-                    lastDate: d.created_at
+                    lastDate: d.created_at,
+                    lastAgent: d.id_atendente || "Desconhecido",
+                    motives: {}
                 });
             }
             const c = map.get(key)!;
             c.total++;
+
+            // 🧠 Lógica de Nome Inteligente: Prefere nomes reais e longos
+            const nomeAtual = d.nome_cliente;
+            const nomeEhValido = nomeAtual && nomeAtual.length > 2 && !["Cliente", "Usuário", "Desconhecido"].includes(nomeAtual);
+
+            if (nomeEhValido) {
+                if (c.nome === "Cliente") c.nome = nomeAtual; // Sai do genérico
+                else if (nomeAtual!.length > c.nome.length) c.nome = nomeAtual!; // Prefere o mais completo
+            }
+
             if (new Date(d.created_at) > new Date(c.lastDate)) {
                 c.lastDate = d.created_at;
-                if (d.nome_cliente && d.nome_cliente.length > c.nome.length) c.nome = d.nome_cliente;
+                c.lastAgent = d.id_atendente || "Desconhecido";
             }
             if (d.avaliacao) {
                 c.somaAvaliacao += d.avaliacao;
                 c.qtdAvaliacao++;
             }
+
+            // Motivos
+            const m = d.motivo || "Outros";
+            c.motives[m] = (c.motives[m] || 0) + 1;
         });
 
-        const lista = Array.from(map.values()).map(c => ({
-            ...c,
-            media: c.qtdAvaliacao > 0 ? (c.somaAvaliacao / c.qtdAvaliacao).toFixed(1) : "N/A",
-            mediaNum: c.qtdAvaliacao > 0 ? (c.somaAvaliacao / c.qtdAvaliacao) : 0
-        }));
+        const lista = Array.from(map.values()).map(c => {
+            const topMotive = Object.entries(c.motives).sort((a, b) => b[1] - a[1])[0]?.[0] || "Geral";
+            return {
+                ...c,
+                media: c.qtdAvaliacao > 0 ? (c.somaAvaliacao / c.qtdAvaliacao).toFixed(1) : "N/A",
+                mediaNum: c.qtdAvaliacao > 0 ? (c.somaAvaliacao / c.qtdAvaliacao) : 0,
+                topMotive
+            }
+        });
 
         return {
             topVolume: [...lista].sort((a, b) => b.total - a.total).slice(0, 10),
@@ -888,15 +918,15 @@ export default function DashboardAdministrativaPage() {
                                                             </div>
                                                             <div className="flex flex-col items-end">
                                                                 <span className="text-xs font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">{c.count}</span>
-                                                                {/* 
-                                                                    ⚠️ CÓDIGO INATIVO: NOTA DO CLIENTE 
+                                                                {/*
+                                                                    ⚠️ CÓDIGO INATIVO: NOTA DO CLIENTE
                                                                     Futuramente integrar com backend de reputação.
-                                                                    
+
                                                                     <div className="flex gap-0.5 mt-0.5">
                                                                         {[1,2,3,4,5].map(star => (
                                                                             <span key={star} className={`text-[8px] ${star <= 4 ? 'text-amber-400' : 'text-slate-200'}`}>★</span>
                                                                         ))}
-                                                                    </div> 
+                                                                    </div>
                                                                 */}
                                                             </div>
                                                         </div>
@@ -937,15 +967,19 @@ export default function DashboardAdministrativaPage() {
                                     </h3>
                                     <div className="space-y-3">
                                         {clientMapData.topVolume.map((c, i) => (
-                                            <div key={i} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg hover:bg-blue-50 transition-colors">
+                                            <div key={i} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg hover:bg-blue-50 transition-colors group">
                                                 <div className="flex items-center gap-3">
-                                                    <div className="bg-blue-600 text-white w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm">#{i + 1}</div>
-                                                    <div>
-                                                        <p className="font-bold text-slate-800 text-sm truncate w-32 md:w-40" title={c.nome}>{c.nome}</p>
-                                                        <p className="text-xs text-slate-500">{c.telefone}</p>
+                                                    <div className="bg-blue-600 text-white w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm shrink-0">#{i + 1}</div>
+                                                    <div className="min-w-0">
+                                                        <p className="font-bold text-slate-800 text-sm truncate" title={c.nome}>{c.nome}</p>
+                                                        <p className="text-xs text-slate-500 font-mono">{c.telefone}</p>
+                                                        <div className="flex items-center gap-2 mt-1 opacity-60 group-hover:opacity-100 transition-opacity">
+                                                            <Badge variant="secondary" className="text-[10px] h-4 px-1">{c.topMotive}</Badge>
+                                                            <span className="text-[10px] text-slate-400 flex items-center gap-1"><User className="h-3 w-3" /> {c.lastAgent.split(' ')[0]}</span>
+                                                        </div>
                                                     </div>
                                                 </div>
-                                                <div className="text-right">
+                                                <div className="text-right shrink-0">
                                                     <p className="font-bold text-blue-600 text-lg">{c.total}</p>
                                                     <p className="text-[10px] text-slate-400">contatos</p>
                                                 </div>
@@ -963,14 +997,20 @@ export default function DashboardAdministrativaPage() {
                                     <div className="space-y-3">
                                         {clientMapData.topAvaliacao.length === 0 ? <p className="text-sm text-slate-400 italic text-center p-4">Sem avaliações no período</p> :
                                             clientMapData.topAvaliacao.map((c, i) => (
-                                                <div key={i} className="flex items-center justify-between p-3 bg-emerald-50/50 rounded-lg border-l-4 border-emerald-400">
-                                                    <div>
-                                                        <p className="font-bold text-slate-800 text-sm truncate w-32 md:w-36">{c.nome}</p>
-                                                        <div className="flex items-center gap-1 mt-1">
-                                                            <div className="flex text-amber-400"><Star className="h-3 w-3 fill-amber-400" /></div>
-                                                            <span className="text-xs font-bold text-slate-700">{c.media}</span>
-                                                            <span className="text-[10px] text-slate-500">({c.qtdAvaliacao})</span>
+                                                <div key={i} className="flex items-center justify-between p-3 bg-emerald-50/50 rounded-lg border-l-4 border-emerald-400 relative overflow-hidden group">
+                                                    <div className="min-w-0 flex-1">
+                                                        <p className="font-bold text-slate-800 text-sm truncate" title={c.nome}>{c.nome}</p>
+                                                        <p className="text-[10px] text-slate-500 font-mono mb-1">{c.telefone}</p>
+                                                        <div className="flex items-center gap-2">
+                                                            <div className="flex items-center gap-1 bg-white px-1.5 py-0.5 rounded shadow-sm border border-emerald-100">
+                                                                <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
+                                                                <span className="text-xs font-bold text-slate-800">{c.media}</span>
+                                                            </div>
+                                                            <span className="text-[10px] text-slate-500">({c.qtdAvaliacao} avaliações)</span>
                                                         </div>
+                                                    </div>
+                                                    <div className="ml-2 absolute right-0 top-0 bottom-0 w-16 bg-gradient-to-l from-white to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-end pr-2">
+                                                        <span className="text-[10px] bg-slate-100 px-1 rounded text-slate-500">{c.lastAgent.split(' ')[0]}</span>
                                                     </div>
                                                 </div>
                                             ))}
@@ -986,12 +1026,16 @@ export default function DashboardAdministrativaPage() {
                                     <div className="space-y-3">
                                         {clientMapData.detratores.length === 0 ? <div className="p-4 text-center bg-green-50 rounded-lg text-green-700 text-xs font-bold border border-green-100 flex flex-col items-center gap-2"><CheckCircle2 className="h-6 w-6" />Nenhuma nota crítica!</div> :
                                             clientMapData.detratores.map((c, i) => (
-                                                <div key={i} className="flex items-center justify-between p-3 bg-red-50 rounded-lg border-l-4 border-red-400">
-                                                    <div>
-                                                        <p className="font-bold text-slate-800 text-sm truncate w-32 md:w-36">{c.nome}</p>
-                                                        <div className="flex items-center gap-1 mt-1">
-                                                            <Star className="h-3 w-3 text-red-400 fill-red-400" />
-                                                            <span className="text-xs font-bold text-red-700">{c.media}</span>
+                                                <div key={i} className="flex items-center justify-between p-3 bg-red-50 rounded-lg border-l-4 border-red-400 group">
+                                                    <div className="min-w-0">
+                                                        <p className="font-bold text-slate-800 text-sm truncate" title={c.nome}>{c.nome}</p>
+                                                        <p className="text-[10px] text-slate-500 font-mono mb-1">{c.telefone}</p>
+                                                        <div className="flex items-center gap-2">
+                                                            <div className="flex items-center gap-1 bg-white px-1.5 py-0.5 rounded shadow-sm border border-red-100">
+                                                                <Star className="h-3 w-3 text-red-500 fill-red-500" />
+                                                                <span className="text-xs font-bold text-red-700">{c.media}</span>
+                                                            </div>
+                                                            <Badge variant="outline" className="text-[10px] h-4 px-1 bg-white border-red-200 text-red-700 max-w-[80px] truncate">{c.topMotive}</Badge>
                                                         </div>
                                                     </div>
                                                 </div>
