@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
-import { PlusCircle, Search, Trash2, AlertCircle, Clock, CheckCircle2, CheckSquare } from "lucide-react"
+import { useState, useEffect, useMemo, useRef } from "react"
+import { PlusCircle, Search, Trash2, AlertCircle, Clock, CheckCircle2, CheckSquare, Camera, Download } from "lucide-react"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -32,6 +32,8 @@ import {
 import { Skeleton } from "@/components/ui/skeleton"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
+// @ts-ignore - html2canvas doesn't have perfect types
+import html2canvas from "html2canvas"
 
 // Loading dots animation component
 function LoadingDots() {
@@ -162,10 +164,13 @@ export default function PendenciasPage() {
   const [loading, setLoading] = useState(true)
   const [isLoadingAuthors, setIsLoadingAuthors] = useState(true)
   const [processingId, setProcessingId] = useState<number | null>(null)
+  const [capturingScreenshot, setCapturingScreenshot] = useState(false)
 
   const [showFormDialog, setShowFormDialog] = useState(false)
   const [pendenciaEmEdicao, setPendenciaEmEdicao] = useState<Partial<Pendencia> | null>(null)
   const [pendenciaParaRemover, setPendenciaParaRemover] = useState<Pendencia | null>(null)
+
+  const tableRef = useRef<HTMLDivElement>(null)
 
   const { toast } = useToast()
   const { playSuccessSound } = useAudioFeedback()
@@ -287,9 +292,66 @@ export default function PendenciasPage() {
     }
   }
 
+  const handleCaptureScreenshot = async () => {
+    if (!tableRef.current) return
+
+    setCapturingScreenshot(true)
+    try {
+      // Capture the entire pendencias table
+      const canvas = await html2canvas(tableRef.current, {
+        backgroundColor: "#ffffff",
+        scale: 2, // Higher quality
+        logging: false,
+        useCORS: true,
+      })
+
+      // Convert canvas to blob
+      canvas.toBlob(async (blob) => {
+        if (!blob) {
+          throw new Error("Failed to create image")
+        }
+
+        // Copy to clipboard
+        try {
+          await navigator.clipboard.write([
+            new ClipboardItem({
+              "image/png": blob,
+            }),
+          ])
+
+          toast({
+            title: "✓ Screenshot capturado!",
+            description: "Imagem copiada para área de transferência.",
+          })
+        } catch (clipboardError) {
+          // Fallback: download the image
+          const url = URL.createObjectURL(blob)
+          const link = document.createElement("a")
+          link.href = url
+          link.download = `pendencias_${new Date().toISOString().split("T")[0]}.png`
+          link.click()
+          URL.revokeObjectURL(url)
+
+          toast({
+            title: "✓ Screenshot salvo!",
+            description: "Imagem baixada (clipboard não suportado neste navegador).",
+          })
+        }
+      }, "image/png")
+    } catch (error: any) {
+      toast({
+        title: "Erro ao capturar screenshot",
+        description: error.message,
+        variant: "destructive",
+      })
+    } finally {
+      setCapturingScreenshot(false)
+    }
+  }
+
   const getStatusDisplay = (status: string, isProcessing: boolean) => {
     const baseStyle =
-      "flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-sm transition-all duration-300 min-w-[160px] shadow-sm border"
+      "flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-sm transition-all duration-200 min-w-[160px] border"
 
     let statusStyle = ""
     let icon = null
@@ -298,24 +360,24 @@ export default function PendenciasPage() {
 
     switch (status) {
       case "nao-concluido":
-        statusStyle = "bg-red-500/80 hover:bg-red-500 text-white border-red-600/20"
-        icon = <CheckSquare className="h-4 w-4" />
+        statusStyle = "bg-red-50 hover:bg-red-100 text-red-700 border-red-200"
+        icon = <CheckSquare className="h-4 w-4" strokeWidth={2} />
         text = "Não concluído"
         break
       case "em-andamento":
-        statusStyle = "bg-yellow-500/80 hover:bg-yellow-500 text-white border-yellow-600/20"
-        icon = <Clock className="h-4 w-4" />
+        statusStyle = "bg-amber-50 hover:bg-amber-100 text-amber-700 border-amber-200"
+        icon = <Clock className="h-4 w-4" strokeWidth={2} />
         text = "Em andamento"
         extra = <LoadingDots />
         break
       case "concluido":
-        statusStyle = "bg-green-500/80 hover:bg-green-500 text-white border-green-600/20"
-        icon = <CheckCircle2 className="h-4 w-4" />
+        statusStyle = "bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200"
+        icon = <CheckCircle2 className="h-4 w-4" strokeWidth={2} />
         text = "Concluído"
         break
       default:
-        statusStyle = "bg-gray-500/80 hover:bg-gray-500 text-white border-gray-600/20"
-        icon = <CheckSquare className="h-4 w-4" />
+        statusStyle = "bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200"
+        icon = <CheckSquare className="h-4 w-4" strokeWidth={2} />
         text = status
     }
 
@@ -326,7 +388,7 @@ export default function PendenciasPage() {
         {extra}
         {isProcessing && (
           <div className="ml-2">
-            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+            <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
           </div>
         )}
       </div>
@@ -348,27 +410,50 @@ export default function PendenciasPage() {
   )
 
   return (
-    <div className="flex flex-col gap-6 p-4 md:p-8">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Pendências</h1>
-          <p className="text-muted-foreground">Acompanhe e gerencie as tarefas do dia.</p>
-        </div>
-        <div className="flex gap-2">
-          <div className="relative w-full md:w-64">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              type="search"
-              placeholder="Pesquisar..."
-              className="w-full pl-8"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
+    <div className="min-h-screen bg-white">
+      {/* Header with subtle bottom border */}
+      <div className="border-b border-slate-100 bg-slate-50/30 sticky top-0 z-30 backdrop-blur-sm">
+        <div className="max-w-7xl mx-auto px-6 py-8">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+            <div>
+              <h1 className="text-3xl font-bold tracking-tight text-slate-900">Pendências</h1>
+              <p className="text-slate-500 mt-1">Acompanhe e gerencie as tarefas do dia</p>
+            </div>
+            <div className="flex flex-col sm:flex-row gap-3">
+              <div className="relative w-full sm:w-64">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" strokeWidth={2} />
+                <Input
+                  type="search"
+                  placeholder="Pesquisar..."
+                  className="pl-9 border-slate-200 focus:border-blue-300"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
+              <Button
+                variant="outline"
+                onClick={handleCaptureScreenshot}
+                disabled={capturingScreenshot}
+                className="gap-2 border-slate-200 hover:border-blue-300 hover:bg-blue-50"
+              >
+                {capturingScreenshot ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                    Capturando...
+                  </>
+                ) : (
+                  <>
+                    <Camera className="h-4 w-4" strokeWidth={2} />
+                    Capturar Print
+                  </>
+                )}
+              </Button>
+              <Button onClick={() => handleAbrirForm()} className="gap-2 bg-blue-600 hover:bg-blue-700">
+                <PlusCircle className="h-4 w-4" strokeWidth={2} />
+                Adicionar
+              </Button>
+            </div>
           </div>
-          <Button onClick={() => handleAbrirForm()}>
-            <PlusCircle className="mr-2 h-4 w-4" />
-            Adicionar Pendência
-          </Button>
         </div>
       </div>
 
@@ -404,17 +489,18 @@ export default function PendenciasPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <Card>
-        <CardContent className="p-0">
+      {/* Main Content - Screenshottable Area */}
+      <div className="max-w-7xl mx-auto px-6 py-8">
+        <div ref={tableRef} className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
           <Table>
             <TableHeader>
-              <TableRow>
-                <TableHead className="w-[220px]">Status</TableHead>
-                <TableHead>Título</TableHead>
-                <TableHead className="hidden md:table-cell">Descrição</TableHead>
-                <TableHead className="hidden md:table-cell">Autor</TableHead>
-                <TableHead className="hidden md:table-cell">Data</TableHead>
-                <TableHead className="text-right w-[50px]">Ações</TableHead>
+              <TableRow className="bg-slate-50 hover:bg-slate-50">
+                <TableHead className="w-[220px] font-semibold text-slate-700">Status</TableHead>
+                <TableHead className="font-semibold text-slate-700">Título</TableHead>
+                <TableHead className="hidden md:table-cell font-semibold text-slate-700">Descrição</TableHead>
+                <TableHead className="hidden md:table-cell font-semibold text-slate-700">Autor</TableHead>
+                <TableHead className="hidden md:table-cell font-semibold text-slate-700">Data</TableHead>
+                <TableHead className="text-right w-[50px] font-semibold text-slate-700">Ações</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -422,13 +508,16 @@ export default function PendenciasPage() {
                 Array.from({ length: 5 }).map((_, i) => (
                   <TableRow key={i}>
                     <TableCell colSpan={6}>
-                      <Skeleton className="h-8 w-full" />
+                      <Skeleton className="h-12 w-full" />
                     </TableCell>
                   </TableRow>
                 ))
               ) : filteredPendencias.length > 0 ? (
                 filteredPendencias.map((pendencia) => (
-                  <TableRow key={pendencia.id} className={pendencia.urgente ? "bg-destructive/10" : ""}>
+                  <TableRow
+                    key={pendencia.id}
+                    className={`hover:bg-slate-50/50 transition-colors ${pendencia.urgente ? "bg-red-50/30" : ""}`}
+                  >
                     <TableCell>
                       <Select
                         value={pendencia.status}
@@ -440,60 +529,64 @@ export default function PendenciasPage() {
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="nao-concluido" className="p-1">
-                            <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-red-500/80 text-white min-w-[160px]">
-                              <CheckSquare className="h-4 w-4" />
+                            <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-red-50 text-red-700 min-w-[160px] border border-red-200">
+                              <CheckSquare className="h-4 w-4" strokeWidth={2} />
                               <span>Não concluído</span>
                             </div>
                           </SelectItem>
                           <SelectItem value="em-andamento" className="p-1">
-                            <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-yellow-500/80 text-white min-w-[160px]">
-                              <Clock className="h-4 w-4" />
+                            <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-amber-50 text-amber-700 min-w-[160px] border border-amber-200">
+                              <Clock className="h-4 w-4" strokeWidth={2} />
                               <span>Em andamento</span>
                               <LoadingDots />
                             </div>
                           </SelectItem>
                           <SelectItem value="concluido" className="p-1">
-                            <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-green-500/80 text-white min-w-[160px]">
-                              <CheckCircle2 className="h-4 w-4" />
+                            <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-50 text-emerald-700 min-w-[160px] border border-emerald-200">
+                              <CheckCircle2 className="h-4 w-4" strokeWidth={2} />
                               <span>Concluído</span>
                             </div>
                           </SelectItem>
                         </SelectContent>
                       </Select>
                     </TableCell>
-                    <TableCell className="font-medium">{pendencia.titulo}</TableCell>
-                    <TableCell className="hidden md:table-cell text-muted-foreground">{pendencia.descricao}</TableCell>
-                    <TableCell className="hidden md:table-cell text-muted-foreground">
+                    <TableCell className="font-medium text-slate-900">{pendencia.titulo}</TableCell>
+                    <TableCell className="hidden md:table-cell text-slate-600">{pendencia.descricao}</TableCell>
+                    <TableCell className="hidden md:table-cell text-slate-600">
                       {pendencia.author || "N/A"}
                     </TableCell>
-                    <TableCell className="hidden md:table-cell text-muted-foreground">
+                    <TableCell className="hidden md:table-cell text-slate-600">
                       {new Date(pendencia.data).toLocaleDateString("pt-BR")}
                     </TableCell>
                     <TableCell className="text-right">
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                        className="text-red-600 hover:bg-red-50 hover:text-red-700 transition-colors"
                         onClick={() => setPendenciaParaRemover(pendencia)}
                         disabled={!!processingId}
                       >
-                        <Trash2 className="h-4 w-4" />
+                        <Trash2 className="h-4 w-4" strokeWidth={2} />
                       </Button>
                     </TableCell>
                   </TableRow>
                 ))
               ) : (
                 <TableRow>
-                  <TableCell colSpan={6} className="h-24 text-center">
-                    <AlertCircle className="mx-auto h-8 w-8 text-muted-foreground" />
-                    <p className="mt-2 text-muted-foreground">Nenhuma pendência encontrada.</p>
+                  <TableCell colSpan={6} className="h-32 text-center">
+                    <div className="flex flex-col items-center justify-center gap-3">
+                      <div className="p-3 rounded-full bg-slate-100">
+                        <AlertCircle className="h-6 w-6 text-slate-400" strokeWidth={2} />
+                      </div>
+                      <p className="text-slate-500">Nenhuma pendência encontrada</p>
+                    </div>
                   </TableCell>
                 </TableRow>
               )}
             </TableBody>
           </Table>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   )
 }
