@@ -1,6 +1,11 @@
-import { createClient } from "@supabase/supabase-js"
+import { createClient as createBrowserClient } from '@/utils/supabase/client'
 
-// Função para verificar se o Supabase está configurado
+// --- Deprecated default export (Migration Layer) ---
+// This ensures existing code using "import { supabase } from '@/lib/supabase'" continues to work
+// but now uses the proper Browser Client with auth support.
+export const supabase = createBrowserClient()
+
+// --- Utility function ---
 export function isSupabaseConfigured(): boolean {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
     const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -8,20 +13,7 @@ export function isSupabaseConfigured(): boolean {
     return !!(supabaseUrl && supabaseAnonKey && supabaseUrl !== "" && supabaseAnonKey !== "")
 }
 
-// Configuração do Supabase com valores padrão para evitar erros
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://placeholder.supabase.co"
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "placeholder-key"
-
-// ✅ Configuração com auth para prevenir AbortError
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-    auth: {
-        persistSession: false,    // Desabilita persistência de sessão
-        autoRefreshToken: false,  // Desabilita auto-refresh
-        detectSessionInUrl: false // Desabilita detecção de sessão na URL
-    }
-})
-
-// Tipos para as tabelas
+// --- Types (Preserved) ---
 export interface FAQ {
     id: string
     pergunta: string
