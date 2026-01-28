@@ -57,6 +57,7 @@ interface Atendimento {
     duration_minutes: number
     status_visual: "Em andamento" | "Sucesso" | "Falha" | "Transferido"
     avaliacao?: number // ⭐ Campo Novo
+    origem?: 'receptivo' | 'ativo' // 🆕
 }
 
 interface MonitorAtendente {
@@ -287,18 +288,20 @@ export default function DashboardAdministrativaPage() {
             }
             const { data: dbData } = await query
             if (dbData) {
-                const processedData = dbData.map((item) => {
-                    let statusVisual: Atendimento["status_visual"] = "Em andamento"
-                    const s = item.status?.toLowerCase() || ""
-                    if (s.includes("transferido")) statusVisual = "Transferido"
-                    else if (s.includes("sem sucesso") || s.includes("falha") || s.includes("não")) statusVisual = "Falha"
-                    else if (s.includes("sucesso") || s.includes("resolvido")) statusVisual = "Sucesso"
-                    return {
-                        ...item,
-                        status_visual: statusVisual,
-                        duration_minutes: calculateDuration(item.created_at, statusVisual === "Em andamento" ? undefined : (item.updated_at || new Date().toISOString()))
-                    }
-                })
+                const processedData = dbData
+                    .filter(item => item.origem !== 'ativo') // 🆕 FILTRO: Ignora atendimentos ativos nas estatísticas
+                    .map((item) => {
+                        let statusVisual: Atendimento["status_visual"] = "Em andamento"
+                        const s = item.status?.toLowerCase() || ""
+                        if (s.includes("transferido")) statusVisual = "Transferido"
+                        else if (s.includes("sem sucesso") || s.includes("falha") || s.includes("não")) statusVisual = "Falha"
+                        else if (s.includes("sucesso") || s.includes("resolvido")) statusVisual = "Sucesso"
+                        return {
+                            ...item,
+                            status_visual: statusVisual,
+                            duration_minutes: calculateDuration(item.created_at, statusVisual === "Em andamento" ? undefined : (item.updated_at || new Date().toISOString()))
+                        }
+                    })
                 setData(processedData as Atendimento[])
             }
 
