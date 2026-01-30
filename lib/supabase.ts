@@ -16,14 +16,26 @@ export function isSupabaseConfigured(): boolean {
 // --- Types (Preserved) ---
 export interface FAQ {
     id: string
-    pergunta: string
-    resposta: string
-    categoria: string
-    tags: string[]
+    title: string
+    description: string
+    category: string
+    tags?: string[]
+    author?: string | null
+    images?: any[]
     created_at: string
-    updated_at: string
+    updated_at?: string
+    // Legacy fields (optional)
+    pergunta?: string
+    resposta?: string
     image_url?: string
     image_path?: string
+}
+
+export interface Author {
+    id: string
+    name: string
+    email?: string
+    avatar_url?: string
 }
 
 export interface Posto {
