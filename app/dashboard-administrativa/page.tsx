@@ -6,7 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Progress } from "@/components/ui/progress"
-import { Activity, Clock, User, CheckCircle2, CalendarDays, RotateCcw, Search, X, MessageCircle, Wifi, WifiOff, Filter, TrendingUp, Users, Target, ChevronLeft, ChevronRight, AlertTriangle, Ghost, Calendar, Bell, Info, Sparkles, TrendingDown, BrainCircuit, Trophy, Flame, Zap, RefreshCw, Star } from "lucide-react"
+import { Activity, Clock, User, CheckCircle2, CalendarDays, RotateCcw, Search, X, MessageCircle, Wifi, WifiOff, Filter, TrendingUp, Users, Target, ChevronLeft, ChevronRight, AlertTriangle, Ghost, Calendar, Bell, Info, Sparkles, TrendingDown, BrainCircuit, Trophy, Flame, Zap, RefreshCw, Star, Phone, ArrowUpRight, ArrowDownRight, MessageSquare } from "lucide-react"
 import {
     PieChart,
     Pie,
@@ -131,6 +131,7 @@ export default function DashboardAdministrativaPage() {
 
     const [showModal, setShowModal] = useState(false)
     const [showClientModal, setShowClientModal] = useState(false) // ⭐ Modal Clientes
+    const [clientSearchTerm, setClientSearchTerm] = useState("") // 🔍 Busca no modal de clientes
     const [showAlertsPanel, setShowAlertsPanel] = useState(false)
     const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null)
     const [searchTerm, setSearchTerm] = useState("")
@@ -580,12 +581,23 @@ export default function DashboardAdministrativaPage() {
             }
         });
 
+        // 🔍 Aplicar filtro de busca
+        const filtered = lista.filter(c =>
+            c.nome.toLowerCase().includes(clientSearchTerm.toLowerCase()) ||
+            c.telefone.includes(clientSearchTerm)
+        );
+
         return {
-            topVolume: [...lista].sort((a, b) => b.total - a.total).slice(0, 10),
-            topAvaliacao: [...lista].filter(c => c.qtdAvaliacao > 0).sort((a, b) => b.mediaNum - a.mediaNum).slice(0, 5),
-            detratores: [...lista].filter(c => c.qtdAvaliacao > 0 && c.mediaNum <= 2.5).sort((a, b) => a.mediaNum - b.mediaNum).slice(0, 5)
+            stats: {
+                totalClientes: lista.length,
+                mediaGeral: lista.filter(c => c.qtdAvaliacao > 0).reduce((acc, curr) => acc + curr.mediaNum, 0) / (lista.filter(c => c.qtdAvaliacao > 0).length || 1),
+                totalContatos: lista.reduce((acc, curr) => acc + curr.total, 0)
+            },
+            topVolume: [...filtered].sort((a, b) => b.total - a.total).slice(0, 10),
+            topAvaliacao: [...filtered].filter(c => c.qtdAvaliacao > 0).sort((a, b) => b.mediaNum - a.mediaNum).slice(0, 5),
+            detratores: [...filtered].filter(c => c.qtdAvaliacao > 0 && c.mediaNum <= 2.5).sort((a, b) => a.mediaNum - b.mediaNum).slice(0, 5)
         };
-    }, [data]);
+    }, [data, clientSearchTerm]);
 
     const isToday = dateFilter === new Date().toISOString().split("T")[0] && viewMode === "Diário"
 
@@ -945,114 +957,242 @@ export default function DashboardAdministrativaPage() {
                     </div>
                 </div>
             )}
-            {/* MODAL MAPA DE CLIENTES */}
-            {showClientModal && (
-                <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in">
-                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
-                        <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-                            <div>
-                                <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-3">
-                                    <Users className="h-8 w-8 text-indigo-600" />
-                                    Mapa de Clientes ({viewMode})
-                                </h2>
-                                <p className="text-slate-500 text-sm mt-1">Análise de volume e satisfação no período selecionado</p>
-                            </div>
-                            <button onClick={() => setShowClientModal(false)} className="p-2 hover:bg-slate-200 rounded-full transition-colors"><X className="h-6 w-6 text-slate-500" /></button>
+            {/* 4. MAPA DE CLIENTES (IMPLEMENTAÇÃO INLINE) */}
+            {showClientModal && (() => {
+                // Componentes auxiliares
+                const StatCard = ({ title, value, icon: Icon, colorClass, subtitle }: any) => (
+                    <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex items-center gap-4">
+                        <div className={`p-3 rounded-lg ${colorClass}`}>
+                            <Icon className="h-6 w-6" />
                         </div>
-
-                        <div className="p-6 overflow-y-auto bg-slate-50/30">
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                {/* TOP VOLUME */}
-                                <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-                                    <h3 className="font-bold text-slate-700 mb-4 flex items-center gap-2">
-                                        <span className="bg-blue-100 text-blue-700 p-1.5 rounded-lg"><TrendingUp className="h-5 w-5" /></span>
-                                        Top Volume
-                                    </h3>
-                                    <div className="space-y-3">
-                                        {clientMapData.topVolume.map((c, i) => (
-                                            <div key={i} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg hover:bg-blue-50 transition-colors group">
-                                                <div className="flex items-center gap-3">
-                                                    <div className="bg-blue-600 text-white w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm shrink-0">#{i + 1}</div>
-                                                    <div className="min-w-0">
-                                                        <p className="font-bold text-slate-800 text-sm truncate" title={c.nome}>{c.nome}</p>
-                                                        <p className="text-xs text-slate-500 font-mono">{c.telefone}</p>
-                                                        <div className="flex items-center gap-2 mt-1 opacity-60 group-hover:opacity-100 transition-opacity">
-                                                            <Badge variant="secondary" className="text-[10px] h-4 px-1">{c.topMotive}</Badge>
-                                                            <span className="text-[10px] text-slate-400 flex items-center gap-1"><User className="h-3 w-3" /> {c.lastAgent.split(' ')[0]}</span>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                                <div className="text-right shrink-0">
-                                                    <p className="font-bold text-blue-600 text-lg">{c.total}</p>
-                                                    <p className="text-[10px] text-slate-400">contatos</p>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-
-                                {/* TOP AVALIAÇÃO */}
-                                <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-                                    <h3 className="font-bold text-slate-700 mb-4 flex items-center gap-2">
-                                        <span className="bg-emerald-100 text-emerald-700 p-1.5 rounded-lg"><Star className="h-5 w-5" /></span>
-                                        Melhores Avaliados
-                                    </h3>
-                                    <div className="space-y-3">
-                                        {clientMapData.topAvaliacao.length === 0 ? <p className="text-sm text-slate-400 italic text-center p-4">Sem avaliações no período</p> :
-                                            clientMapData.topAvaliacao.map((c, i) => (
-                                                <div key={i} className="flex items-center justify-between p-3 bg-emerald-50/50 rounded-lg border-l-4 border-emerald-400 relative overflow-hidden group">
-                                                    <div className="min-w-0 flex-1">
-                                                        <p className="font-bold text-slate-800 text-sm truncate" title={c.nome}>{c.nome}</p>
-                                                        <p className="text-[10px] text-slate-500 font-mono mb-1">{c.telefone}</p>
-                                                        <div className="flex items-center gap-2">
-                                                            <div className="flex items-center gap-1 bg-white px-1.5 py-0.5 rounded shadow-sm border border-emerald-100">
-                                                                <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
-                                                                <span className="text-xs font-bold text-slate-800">{c.media}</span>
-                                                            </div>
-                                                            <span className="text-[10px] text-slate-500">({c.qtdAvaliacao} avaliações)</span>
-                                                        </div>
-                                                    </div>
-                                                    <div className="ml-2 absolute right-0 top-0 bottom-0 w-16 bg-gradient-to-l from-white to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-end pr-2">
-                                                        <span className="text-[10px] bg-slate-100 px-1 rounded text-slate-500">{c.lastAgent.split(' ')[0]}</span>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                    </div>
-                                </div>
-
-                                {/* DETRATORES */}
-                                <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
-                                    <h3 className="font-bold text-slate-700 mb-4 flex items-center gap-2">
-                                        <span className="bg-red-100 text-red-700 p-1.5 rounded-lg"><AlertTriangle className="h-5 w-5" /></span>
-                                        Atenção (Nota Baixa)
-                                    </h3>
-                                    <div className="space-y-3">
-                                        {clientMapData.detratores.length === 0 ? <div className="p-4 text-center bg-green-50 rounded-lg text-green-700 text-xs font-bold border border-green-100 flex flex-col items-center gap-2"><CheckCircle2 className="h-6 w-6" />Nenhuma nota crítica!</div> :
-                                            clientMapData.detratores.map((c, i) => (
-                                                <div key={i} className="flex items-center justify-between p-3 bg-red-50 rounded-lg border-l-4 border-red-400 group">
-                                                    <div className="min-w-0">
-                                                        <p className="font-bold text-slate-800 text-sm truncate" title={c.nome}>{c.nome}</p>
-                                                        <p className="text-[10px] text-slate-500 font-mono mb-1">{c.telefone}</p>
-                                                        <div className="flex items-center gap-2">
-                                                            <div className="flex items-center gap-1 bg-white px-1.5 py-0.5 rounded shadow-sm border border-red-100">
-                                                                <Star className="h-3 w-3 text-red-500 fill-red-500" />
-                                                                <span className="text-xs font-bold text-red-700">{c.media}</span>
-                                                            </div>
-                                                            <Badge variant="outline" className="text-[10px] h-4 px-1 bg-white border-red-200 text-red-700 max-w-[80px] truncate">{c.topMotive}</Badge>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end">
-                            <button onClick={() => setShowClientModal(false)} className="px-6 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 rounded-lg font-bold transition-colors">Fechar</button>
+                        <div>
+                            <p className="text-sm text-slate-500 font-medium">{title}</p>
+                            <h4 className="text-2xl font-bold text-slate-800">{value}</h4>
+                            {subtitle && <p className="text-[10px] text-slate-400">{subtitle}</p>}
                         </div>
                     </div>
-                </div>
-            )}
+                )
+
+                const RatingBadge = ({ rating }: { rating: number }) => {
+                    const getColor = (r: number) => {
+                        if (r >= 4) return "bg-emerald-50 text-emerald-700 border-emerald-100"
+                        if (r >= 3) return "bg-amber-50 text-amber-700 border-amber-100"
+                        return "bg-red-50 text-red-700 border-red-100"
+                    }
+
+                    return (
+                        <div className={`flex items-center gap-1 px-2 py-0.5 rounded-full border font-bold text-xs ${getColor(rating)}`}>
+                            <Star className={`h-3 w-3 ${rating >= 3 ? 'fill-current' : ''}`} />
+                            {rating.toFixed(1)}
+                        </div>
+                    )
+                }
+
+                return (
+                    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-md animate-in fade-in duration-300">
+                        <div className="bg-slate-50 rounded-3xl shadow-2xl w-full max-w-6xl max-h-[92vh] overflow-hidden flex flex-col border border-white/20">
+                            {/* HEADER */}
+                            <div className="px-8 py-6 bg-white border-b border-slate-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                                <div className="flex items-center gap-4">
+                                    <div className="bg-indigo-600 p-3 rounded-2xl shadow-lg shadow-indigo-200">
+                                        <Users className="h-7 w-7 text-white" />
+                                    </div>
+                                    <div>
+                                        <h2 className="text-2xl font-extrabold text-slate-800 tracking-tight">
+                                            Mapa de Clientes
+                                            <span className="ml-2 text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full text-xs font-bold uppercase">
+                                                {viewMode}
+                                            </span>
+                                        </h2>
+                                        <p className="text-slate-500 text-sm font-medium">Inteligência de relacionamento e satisfação</p>
+                                    </div>
+                                </div>
+
+                                <div className="flex items-center gap-3 w-full md:w-auto">
+                                    <div className="relative flex-1 md:w-64">
+                                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                                        <input
+                                            type="text"
+                                            placeholder="Buscar cliente ou tel..."
+                                            className="pl-10 bg-slate-100 border-none focus:ring-2 ring-indigo-500 rounded-xl w-full py-2 text-sm outline-none"
+                                            value={clientSearchTerm}
+                                            onChange={(e) => setClientSearchTerm(e.target.value)}
+                                        />
+                                    </div>
+                                    <button
+                                        onClick={() => { setShowClientModal(false); setClientSearchTerm(""); }}
+                                        className="p-2 hover:bg-slate-100 rounded-xl transition-all text-slate-400 hover:text-slate-600"
+                                    >
+                                        <X className="h-6 w-6" />
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="p-8 overflow-y-auto custom-scrollbar space-y-8">
+                                {/* DASHBOARD DE RESUMO */}
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                    <StatCard
+                                        title="Total de Clientes"
+                                        value={clientMapData.stats.totalClientes}
+                                        icon={Users}
+                                        colorClass="bg-blue-50 text-blue-600"
+                                        subtitle="Clientes únicos identificados"
+                                    />
+                                    <StatCard
+                                        title="Média de Satisfação"
+                                        value={clientMapData.stats.mediaGeral.toFixed(2)}
+                                        icon={Star}
+                                        colorClass="bg-amber-50 text-amber-600"
+                                        subtitle="Baseado em avaliações reais"
+                                    />
+                                    <StatCard
+                                        title="Volume de Contatos"
+                                        value={clientMapData.stats.totalContatos}
+                                        icon={MessageSquare}
+                                        colorClass="bg-indigo-50 text-indigo-600"
+                                        subtitle="Total de interações no período"
+                                    />
+                                </div>
+
+                                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                                    {/* COLUNA 1: TOP VOLUME */}
+                                    <section className="space-y-4">
+                                        <div className="flex items-center justify-between px-1">
+                                            <h3 className="font-bold text-slate-700 flex items-center gap-2">
+                                                <TrendingUp className="h-5 w-5 text-blue-500" />
+                                                Top Volume
+                                            </h3>
+                                            <span className="text-[10px] uppercase px-2 py-1 border border-slate-300 rounded-md bg-white text-slate-600">Top 10</span>
+                                        </div>
+                                        <div className="space-y-3">
+                                            {clientMapData.topVolume.map((c, i) => (
+                                                <div key={i} className="group bg-white p-4 rounded-2xl border border-slate-200 hover:border-indigo-300 hover:shadow-md transition-all cursor-default">
+                                                    <div className="flex items-start justify-between mb-3">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-500 font-bold group-hover:bg-indigo-600 group-hover:text-white transition-colors">
+                                                                {i + 1}
+                                                            </div>
+                                                            <div className="min-w-0">
+                                                                <h4 className="font-bold text-slate-800 text-sm truncate w-32" title={c.nome}>{c.nome}</h4>
+                                                                <p className="text-xs text-slate-400 flex items-center gap-1"><Phone className="h-3 w-3" /> {c.telefone}</p>
+                                                            </div>
+                                                        </div>
+                                                        <div className="text-right">
+                                                            <span className="text-xl font-black text-slate-800 group-hover:text-indigo-600 transition-colors">{c.total}</span>
+                                                            <p className="text-[9px] text-slate-400 uppercase font-bold">Contatos</p>
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-center justify-between pt-3 border-t border-slate-50">
+                                                        <span className="bg-slate-100 text-slate-600 text-[10px] px-2 py-0.5 rounded">
+                                                            {c.topMotive}
+                                                        </span>
+                                                        <div className="flex items-center gap-1 text-[10px] text-slate-400">
+                                                            <User className="h-3 w-3" />
+                                                            <span>Último: {c.lastAgent.split(' ')[0]}</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </section>
+
+                                    {/* COLUNA 2: MELHORES AVALIADOS */}
+                                    <section className="space-y-4">
+                                        <div className="flex items-center justify-between px-1">
+                                            <h3 className="font-bold text-slate-700 flex items-center gap-2">
+                                                <Star className="h-5 w-5 text-amber-500" />
+                                                Promotores
+                                            </h3>
+                                            <span className="text-[10px] uppercase text-emerald-600 border border-emerald-200 px-2 py-1 rounded-md bg-white">Satisfeitos</span>
+                                        </div>
+                                        <div className="space-y-3">
+                                            {clientMapData.topAvaliacao.length === 0 ? (
+                                                <div className="bg-white rounded-2xl p-8 text-center border border-dashed border-slate-300">
+                                                    <p className="text-sm text-slate-400 italic">Nenhuma avaliação positiva</p>
+                                                </div>
+                                            ) : clientMapData.topAvaliacao.map((c, i) => (
+                                                <div key={i} className="bg-white p-4 rounded-2xl border border-slate-200 border-l-4 border-l-emerald-500 hover:shadow-md transition-all">
+                                                    <div className="flex justify-between items-start">
+                                                        <div className="min-w-0">
+                                                            <h4 className="font-bold text-slate-800 text-sm truncate" title={c.nome}>{c.nome}</h4>
+                                                            <div className="flex items-center gap-2 mt-1">
+                                                                <RatingBadge rating={c.mediaNum} />
+                                                                <span className="text-[10px] text-slate-400">({c.qtdAvaliacao} notas)</span>
+                                                            </div>
+                                                        </div>
+                                                        <div className="bg-emerald-50 p-1.5 rounded-lg">
+                                                            <ArrowUpRight className="h-4 w-4 text-emerald-600" />
+                                                        </div>
+                                                    </div>
+                                                    <div className="mt-3 flex items-center gap-2">
+                                                        <Calendar className="h-3 w-3 text-slate-300" />
+                                                        <span className="text-[10px] text-slate-400">Último contato: {new Date(c.lastDate).toLocaleDateString()}</span>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </section>
+
+                                    {/* COLUNA 3: DETRATORES */}
+                                    <section className="space-y-4">
+                                        <div className="flex items-center justify-between px-1">
+                                            <h3 className="font-bold text-slate-700 flex items-center gap-2">
+                                                <AlertTriangle className="h-5 w-5 text-red-500" />
+                                                Atenção Crítica
+                                            </h3>
+                                            <span className="text-[10px] uppercase animate-pulse bg-red-500 text-white px-2 py-1 rounded-md font-bold">Risco</span>
+                                        </div>
+                                        <div className="space-y-3">
+                                            {clientMapData.detratores.length === 0 ? (
+                                                <div className="bg-emerald-50 rounded-2xl p-8 text-center border border-emerald-100 flex flex-col items-center gap-3">
+                                                    <div className="bg-white p-2 rounded-full shadow-sm">
+                                                        <CheckCircle2 className="h-8 w-8 text-emerald-500" />
+                                                    </div>
+                                                    <p className="text-sm font-bold text-emerald-700">Tudo sob controle!</p>
+                                                    <p className="text-[10px] text-emerald-600/70">Nenhum cliente com nota crítica no período.</p>
+                                                </div>
+                                            ) : clientMapData.detratores.map((c, i) => (
+                                                <div key={i} className="bg-white p-4 rounded-2xl border border-slate-200 border-l-4 border-l-red-500 hover:shadow-md transition-all">
+                                                    <div className="flex justify-between items-start">
+                                                        <div className="min-w-0">
+                                                            <h4 className="font-bold text-slate-800 text-sm truncate" title={c.nome}>{c.nome}</h4>
+                                                            <div className="flex items-center gap-2 mt-1">
+                                                                <RatingBadge rating={c.mediaNum} />
+                                                                <span className="text-[10px] text-red-400 font-medium">Urgente</span>
+                                                            </div>
+                                                        </div>
+                                                        <div className="bg-red-50 p-1.5 rounded-lg">
+                                                            <ArrowDownRight className="h-4 w-4 text-red-600" />
+                                                        </div>
+                                                    </div>
+                                                    <div className="mt-3 p-2 bg-red-50/50 rounded-lg border border-red-100">
+                                                        <p className="text-[10px] text-red-700 font-bold flex items-center gap-1">
+                                                            <MessageSquare className="h-3 w-3" /> Motivo: <span className="bg-white px-1.5 py-0.5 rounded border border-red-200 text-red-700">{c.topMotive}</span>
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </section>
+                                </div>
+                            </div>
+
+                            {/* FOOTER */}
+                            <div className="px-8 py-4 bg-white border-t border-slate-200 flex justify-between items-center">
+                                <p className="text-[11px] text-slate-400 font-medium italic">
+                                    * Dados processados em tempo real com base no histórico de atendimentos.
+                                </p>
+                                <button
+                                    onClick={() => { setShowClientModal(false); setClientSearchTerm(""); }}
+                                    className="px-8 py-2.5 bg-slate-800 hover:bg-slate-900 text-white rounded-xl font-bold transition-all shadow-lg shadow-slate-200 active:scale-95"
+                                >
+                                    Fechar Dashboard
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )
+            })()}
         </div>
     )
 }
