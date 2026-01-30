@@ -1,11 +1,9 @@
 "use client"
 
-import { cn } from "@/lib/utils"
+import * as React from "react"
 import Link from "next/link"
-import type React from "react"
-import { useState, createContext, useContext, useEffect } from "react"
-import { AnimatePresence, motion } from "framer-motion"
 import { usePathname } from "next/navigation"
+import Image from "next/image"
 import {
   BookOpen,
   CheckSquare,
@@ -13,265 +11,126 @@ import {
   FileSpreadsheet,
   Settings,
   Home,
-  X,
-  Lock,
-  Menu,
   MapPin,
-  LayoutDashboard,
   Monitor,
   LogOut,
+  Lock,
 } from "lucide-react"
-import { createClient } from "@/utils/supabase/client"
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarHeader,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarRail,
+  SidebarGroup,
+  useSidebar,
+} from "@/components/ui/sidebar"
 import { ModeToggle } from "@/components/mode-toggle"
-import { Separator } from "@/components/ui/separator"
+import { createClient } from "@/utils/supabase/client"
 import { Button } from "@/components/ui/button"
-import Image from "next/image"
 
-// --- Definição dos Itens de Navegação ---
+// --- Itens de Navegação ---
 const navItems = [
-  { title: "Início", href: "/", icon: <Home className="h-5 w-5" /> },
-  { title: "Base de Conhecimento", href: "/base-conhecimento", icon: <BookOpen className="h-5 w-5" /> },
-  { title: "Pendências", href: "/pendencias", icon: <CheckSquare className="h-5 w-5" /> },
-  { title: "Acessos", href: "/acessos", icon: <Key className="h-5 w-5" /> },
-  { title: "Postos", href: "/postos", icon: <MapPin className="h-5 w-5" /> },
-  {
-    title: "Monitor Atendimento",
-    href: "/dashboard-administrativa",
-    icon: <Monitor className="h-5 w-5" />,
-  },
+  { title: "Início", href: "/", icon: Home },
+  { title: "Base de Conhecimento", href: "/base-conhecimento", icon: BookOpen },
+  { title: "Pendências", href: "/pendencias", icon: CheckSquare },
+  { title: "Acessos", href: "/acessos", icon: Key },
+  { title: "Postos", href: "/postos", icon: MapPin },
+  { title: "Monitor Atendimento", href: "/dashboard-administrativa", icon: Monitor },
   {
     title: "SPEDs",
     href: "https://portalsped.vercel.app/",
-    icon: <FileSpreadsheet className="h-5 w-5" />,
+    icon: FileSpreadsheet,
     external: true,
   },
-  { title: "Configuração", href: "/configuracao", icon: <Settings className="h-5 w-5" /> },
+  { title: "Configuração", href: "/configuracao", icon: Settings },
 ]
 
-// --- Contexto do Sidebar (da sua base) ---
-interface SidebarContextProps {
-  open: boolean
-  setOpen: React.Dispatch<React.SetStateAction<boolean>>
-}
-
-const SidebarContext = createContext<SidebarContextProps | undefined>(undefined)
-
-const useSidebar = () => {
-  const context = useContext(SidebarContext)
-  if (!context) {
-    throw new Error("useSidebar must be used within a SidebarProvider")
-  }
-  return context
-}
-
-// --- Componente Principal do Sidebar ---
-export function AppSidebar() {
-  const [open, setOpen] = useState(false)
-  const isMobile = useIsMobile()
+export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname()
 
+  // Don't render sidebar on login page
   if (pathname === "/login") return null
 
   return (
-    <SidebarContext.Provider value={{ open, setOpen }}>
-      {isMobile ? <MobileSidebar /> : <DesktopSidebar />}
-    </SidebarContext.Provider>
-  )
-}
-
-// --- Sidebar para Desktop ---
-const DesktopSidebar = () => {
-  const { open, setOpen } = useSidebar()
-  const pathname = usePathname()
-  const [isInteracting, setIsInteracting] = useState(false)
-
-  const handleMouseEnter = () => {
-    setOpen(true)
-  }
-
-  const handleMouseLeave = () => {
-    if (!isInteracting) {
-      // Adiciona um pequeno delay para permitir interação com dropdowns
-      setTimeout(() => {
-        if (!isInteracting) {
-          setOpen(false)
-        }
-      }, 200)
-    }
-  }
-
-  const handleInteractionStart = () => {
-    setIsInteracting(true)
-  }
-
-  const handleInteractionEnd = () => {
-    setIsInteracting(false)
-    // Fecha o sidebar após a interação terminar
-    setTimeout(() => {
-      if (!isInteracting) {
-        setOpen(false)
-      }
-    }, 300)
-  }
-
-  return (
-    <motion.div
-      className="h-full hidden md:flex flex-col border-r bg-gray-100/50 dark:bg-gray-900/50 transition-shadow duration-300"
-      animate={{ width: open ? "256px" : "72px" }}
-      onMouseEnter={handleMouseEnter}
-      onMouseLeave={handleMouseLeave}
-      transition={{ duration: 0.2, ease: "easeInOut" }}
-    >
-      <SidebarHeader open={open} />
-      <nav className="flex-1 px-3 py-4 space-y-2">
-        {navItems.map((item) => (
-          <SidebarLink key={item.title} link={item} isActive={pathname === item.href} />
-        ))}
-      </nav>
-      <SidebarFooter open={open} onInteractionStart={handleInteractionStart} onInteractionEnd={handleInteractionEnd} />
-    </motion.div>
-  )
-}
-
-// --- Sidebar para Mobile ---
-const MobileSidebar = () => {
-  const [open, setOpen] = useState(false)
-  const pathname = usePathname()
-
-  return (
-    <>
-      <div className="md:hidden flex items-center justify-between px-4 h-14 border-b bg-gray-100/50 dark:bg-gray-950">
-        <Link href="/" className="flex items-center gap-2 font-bold text-lg">
-          <Image src="/images/eprosys-logo.png" alt="E-PROSYS Logo" width={32} height={32} className="rounded-md" />
-          <span className="text-gray-800 dark:text-gray-200">E-PROSYS</span>
-        </Link>
-        <Button variant="ghost" size="icon" onClick={() => setOpen(true)}>
-          <Menu className="h-6 w-6" />
-        </Button>
-      </div>
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            initial={{ x: "-100%" }}
-            animate={{ x: 0 }}
-            exit={{ x: "-100%" }}
-            transition={{ duration: 0.3, ease: "easeInOut" }}
-            className="fixed inset-0 h-full w-full bg-white dark:bg-gray-950 z-50 flex flex-col"
-          >
-            <div className="flex items-center justify-between p-4 border-b">
-              <Link href="/" className="flex items-center gap-2 font-bold text-lg">
-                <Image
-                  src="/images/eprosys-logo.png"
-                  alt="E-PROSYS Logo"
-                  width={32}
-                  height={32}
-                  className="rounded-md flex-shrink-0"
-                />
-                <span>E-PROSYS</span>
+    <Sidebar collapsible="icon" {...props}>
+      <SidebarHeader>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <SidebarMenuButton size="lg" asChild>
+              <Link href="/">
+                <div className="flex aspect-square size-8 items-center justify-center rounded-lg text-sidebar-primary-foreground">
+                  <Image src="/images/eprosys-logo.png" alt="Logo" width={32} height={32} className="rounded-md" />
+                </div>
+                <div className="grid flex-1 text-left text-sm leading-tight">
+                  <span className="truncate font-semibold text-gray-800 dark:text-gray-200">E-PROSYS</span>
+                  <span className="truncate text-xs text-gray-500">v2.0.0</span>
+                </div>
               </Link>
-              <Button variant="ghost" size="icon" onClick={() => setOpen(false)}>
-                <X className="h-6 w-6" />
-              </Button>
-            </div>
-            <nav className="flex-1 p-4 space-y-2">
-              {navItems.map((item) => (
-                <SidebarLink key={item.title} link={item} isActive={pathname === item.href} isMobile={true} />
-              ))}
-            </nav>
-            <SidebarFooter open={true} />
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarHeader>
+
+      <SidebarContent>
+        <SidebarGroup>
+          <SidebarMenu>
+            {navItems.map((item) => (
+              <SidebarMenuItem key={item.title}>
+                <SidebarMenuButton
+                  asChild
+                  isActive={pathname === item.href}
+                  tooltip={item.title}
+                >
+                  {item.external ? (
+                    <a href={item.href} target="_blank" rel="noopener noreferrer">
+                      <item.icon />
+                      <span>{item.title}</span>
+                    </a>
+                  ) : (
+                    <Link href={item.href}>
+                      <item.icon />
+                      <span>{item.title}</span>
+                    </Link>
+                  )}
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            ))}
+          </SidebarMenu>
+        </SidebarGroup>
+      </SidebarContent>
+
+      <SidebarFooter>
+        <SidebarGroup>
+          <DailyPassword />
+          <SidebarMenu className="mt-2">
+            <SidebarMenuItem>
+              <div className="flex items-center gap-2 pl-2">
+                <ModeToggle />
+              </div>
+            </SidebarMenuItem>
+            <SidebarMenuItem>
+              <SignOutButton />
+            </SidebarMenuItem>
+          </SidebarMenu>
+        </SidebarGroup>
+      </SidebarFooter>
+      <SidebarRail />
+    </Sidebar>
   )
 }
 
-// --- Componentes Internos do Sidebar ---
-const SidebarHeader = ({ open }: { open: boolean }) => (
-  <div className="flex items-center justify-center h-16 border-b">
-    <motion.div
-      initial={false}
-      animate={{ opacity: open ? 1 : 0, width: open ? "auto" : 0 }}
-      transition={{ duration: 0.2 }}
-    >
-      <Link href="/" className={cn("flex items-center gap-2 font-bold text-lg whitespace-nowrap", !open && "hidden")}>
-        <Image
-          src="/images/eprosys-logo.png"
-          alt="E-PROSYS Logo"
-          width={32}
-          height={32}
-          className="rounded-md flex-shrink-0"
-        />
-        <span className="text-gray-800 dark:text-gray-200">E-PROSYS</span>
-      </Link>
-    </motion.div>
-    <AnimatePresence>
-      {!open && (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-          <Image src="/images/eprosys-logo.png" alt="E-PROSYS Logo" width={36} height={36} className="rounded-md" />
-        </motion.div>
-      )}
-    </AnimatePresence>
-  </div>
-)
+// --- Footer Components ---
 
-const SidebarLink = ({
-  link,
-  isActive,
-  isMobile = false,
-}: { link: (typeof navItems)[0]; isActive: boolean; isMobile?: boolean }) => {
-  const { open } = useContext(SidebarContext)!
-  const commonClasses =
-    "flex items-center gap-3 rounded-lg px-3 py-2 text-gray-700 dark:text-gray-300 transition-all duration-200"
-  const activeClasses = "bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 font-semibold"
-  const hoverClasses = "hover:bg-gray-200 dark:hover:bg-gray-800"
+function DailyPassword() {
+  // Generate daily password logic
+  const [dailyPassword, setDailyPassword] = React.useState("")
+  const { state, isMobile } = useSidebar()
 
-  const content = (
-    <>
-      {link.icon}
-      <AnimatePresence>
-        {(open || isMobile) && (
-          <motion.span
-            initial={{ opacity: 0, x: -10 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -10 }}
-            transition={{ duration: 0.2, delay: 0.1 }}
-            className="whitespace-nowrap"
-          >
-            {link.title}
-          </motion.span>
-        )}
-      </AnimatePresence>
-    </>
-  )
-
-  if (link.external) {
-    return (
-      <a href={link.href} target="_blank" rel="noopener noreferrer" className={cn(commonClasses, hoverClasses)}>
-        {content}
-      </a>
-    )
-  }
-
-  return (
-    <Link href={link.href} className={cn(commonClasses, isActive ? activeClasses : hoverClasses)}>
-      {content}
-    </Link>
-  )
-}
-
-const SidebarFooter = ({
-  open,
-  onInteractionStart,
-  onInteractionEnd,
-}: {
-  open: boolean
-  onInteractionStart?: () => void
-  onInteractionEnd?: () => void
-}) => {
-  const [dailyPassword, setDailyPassword] = useState("")
-
-  useEffect(() => {
+  React.useEffect(() => {
     const today = new Date()
     const day = String(today.getDate()).padStart(2, "0")
     const month = String(today.getMonth() + 1).padStart(2, "0")
@@ -280,6 +139,27 @@ const SidebarFooter = ({
     setDailyPassword(password)
   }, [])
 
+  if (state === "collapsed" && !isMobile) {
+    return (
+      <div className="flex justify-center py-2" title={`Senha Diária: ${dailyPassword}`}>
+        <Lock className="h-4 w-4 text-blue-600" />
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex items-center gap-3 p-2 bg-blue-50 dark:bg-blue-900/50 rounded-lg mb-2 overflow-hidden">
+      <Lock className="h-5 w-5 text-blue-600 shrink-0" />
+      <div>
+        <div className="text-xs text-blue-700 dark:text-blue-300 font-medium">Senha diária</div>
+        <div className="text-lg font-bold text-blue-800 dark:text-blue-200">{dailyPassword}</div>
+      </div>
+    </div>
+  )
+}
+
+// Separate component to handle logout click
+function SignOutButton() {
   const handleSignOut = async () => {
     const supabase = createClient()
     await supabase.auth.signOut()
@@ -287,53 +167,13 @@ const SidebarFooter = ({
   }
 
   return (
-    <div className="p-3 border-t">
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2, delay: 0.1 }}
-          >
-            <div className="flex items-center justify-between mb-4">
-              <span className="text-xs text-gray-500">E-PROSYS v2.0.0</span>
-              <div onMouseEnter={onInteractionStart} onMouseLeave={onInteractionEnd} onClick={onInteractionStart}>
-                <ModeToggle />
-              </div>
-            </div>
-            <Separator className="mb-4" />
-            <div className="flex items-center gap-3 p-2 bg-blue-50 dark:bg-blue-900/50 rounded-lg mb-2">
-              <Lock className="h-5 w-5 text-blue-600" />
-              <div>
-                <div className="text-xs text-blue-700 dark:text-blue-300 font-medium">Senha diária</div>
-                <div className="text-lg font-bold text-blue-800 dark:text-blue-200">{dailyPassword}</div>
-              </div>
-            </div>
-
-            <Button
-              variant="ghost"
-              className="w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30 gap-2"
-              onClick={handleSignOut}
-            >
-              <LogOut className="h-4 w-4" />
-              <span>Sair</span>
-            </Button>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
+    <SidebarMenuButton
+      variant="outline"
+      className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30"
+      onClick={handleSignOut}
+    >
+      <LogOut />
+      <span>Sair</span>
+    </SidebarMenuButton>
   )
-}
-
-// Hook para verificar se está em ambiente mobile (para evitar erros de SSR)
-const useIsMobile = () => {
-  const [isMobile, setIsMobile] = useState(false)
-  useEffect(() => {
-    const checkIsMobile = () => setIsMobile(window.innerWidth < 768)
-    checkIsMobile()
-    window.addEventListener("resize", checkIsMobile)
-    return () => window.removeEventListener("resize", checkIsMobile)
-  }, [])
-  return isMobile
 }
