@@ -1068,16 +1068,16 @@ export default function DashboardAdministrativaPage() {
                                             {clientMapData.topVolume.map((c, i) => (
                                                 <div key={i} className="group bg-white p-4 rounded-2xl border border-slate-200 hover:border-indigo-300 hover:shadow-md transition-all cursor-default">
                                                     <div className="flex items-start justify-between mb-3">
-                                                        <div className="flex items-center gap-3">
-                                                            <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-500 font-bold group-hover:bg-indigo-600 group-hover:text-white transition-colors">
+                                                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                                                            <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-500 font-bold group-hover:bg-indigo-600 group-hover:text-white transition-colors shrink-0">
                                                                 {i + 1}
                                                             </div>
-                                                            <div className="min-w-0">
-                                                                <h4 className="font-bold text-slate-800 text-sm truncate w-32" title={c.nome}>{c.nome}</h4>
+                                                            <div className="flex-1 min-w-0">
+                                                                <h4 className="font-bold text-slate-800 text-sm break-words" title={c.nome}>{c.nome}</h4>
                                                                 <p className="text-xs text-slate-400 flex items-center gap-1"><Phone className="h-3 w-3" /> {c.telefone}</p>
                                                             </div>
                                                         </div>
-                                                        <div className="text-right">
+                                                        <div className="text-right shrink-0 ml-3">
                                                             <span className="text-xl font-black text-slate-800 group-hover:text-indigo-600 transition-colors">{c.total}</span>
                                                             <p className="text-[9px] text-slate-400 uppercase font-bold">Contatos</p>
                                                         </div>
@@ -1112,15 +1112,15 @@ export default function DashboardAdministrativaPage() {
                                                 </div>
                                             ) : clientMapData.topAvaliacao.map((c, i) => (
                                                 <div key={i} className="bg-white p-4 rounded-2xl border border-slate-200 border-l-4 border-l-emerald-500 hover:shadow-md transition-all">
-                                                    <div className="flex justify-between items-start">
-                                                        <div className="min-w-0">
-                                                            <h4 className="font-bold text-slate-800 text-sm truncate" title={c.nome}>{c.nome}</h4>
+                                                    <div className="flex justify-between items-start gap-3">
+                                                        <div className="flex-1 min-w-0">
+                                                            <h4 className="font-bold text-slate-800 text-sm break-words" title={c.nome}>{c.nome}</h4>
                                                             <div className="flex items-center gap-2 mt-1">
                                                                 <RatingBadge rating={c.mediaNum} />
                                                                 <span className="text-[10px] text-slate-400">({c.qtdAvaliacao} notas)</span>
                                                             </div>
                                                         </div>
-                                                        <div className="bg-emerald-50 p-1.5 rounded-lg">
+                                                        <div className="bg-emerald-50 p-1.5 rounded-lg shrink-0">
                                                             <ArrowUpRight className="h-4 w-4 text-emerald-600" />
                                                         </div>
                                                     </div>
@@ -1153,15 +1153,15 @@ export default function DashboardAdministrativaPage() {
                                                 </div>
                                             ) : clientMapData.detratores.map((c, i) => (
                                                 <div key={i} className="bg-white p-4 rounded-2xl border border-slate-200 border-l-4 border-l-red-500 hover:shadow-md transition-all">
-                                                    <div className="flex justify-between items-start">
-                                                        <div className="min-w-0">
-                                                            <h4 className="font-bold text-slate-800 text-sm truncate" title={c.nome}>{c.nome}</h4>
+                                                    <div className="flex justify-between items-start gap-3">
+                                                        <div className="flex-1 min-w-0">
+                                                            <h4 className="font-bold text-slate-800 text-sm break-words" title={c.nome}>{c.nome}</h4>
                                                             <div className="flex items-center gap-2 mt-1">
                                                                 <RatingBadge rating={c.mediaNum} />
                                                                 <span className="text-[10px] text-red-400 font-medium">Urgente</span>
                                                             </div>
                                                         </div>
-                                                        <div className="bg-red-50 p-1.5 rounded-lg">
+                                                        <div className="bg-red-50 p-1.5 rounded-lg shrink-0">
                                                             <ArrowDownRight className="h-4 w-4 text-red-600" />
                                                         </div>
                                                     </div>
