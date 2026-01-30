@@ -122,10 +122,13 @@ export default function FaqDetailClient({ faq }: { faq: FAQ }) {
 
   return (
     <>
-      <div className="mb-6">
+      <div className="mb-6 flex items-center justify-between">
         <Button variant="outline" onClick={() => router.back()}>
           <ArrowLeft className="mr-2 h-4 w-4" />
           Voltar
+        </Button>
+        <Button onClick={() => router.push(`/base-conhecimento?editId=${faq.id}`)}>
+          <span className="mr-2">Editar</span>
         </Button>
       </div>
 
