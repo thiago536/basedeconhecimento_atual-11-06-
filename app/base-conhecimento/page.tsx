@@ -7,22 +7,12 @@ import { useAudioFeedback } from "@/hooks/use-audio-feedback"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { supabase, type FAQ, type Author } from "@/lib/supabase"
+import { supabase, type FAQ } from "@/lib/supabase"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Button, buttonVariants } from "@/components/ui/button"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
+import { Dialog, DialogContent } from "@/components/ui/dialog"
 import { useAppStore } from "@/lib/store"
-import { ImageUpload, type ImageWithMetadata } from "@/components/image-upload"
 import { useToast } from "@/components/ui/use-toast"
 import {
   AlertDialog,
@@ -34,165 +24,17 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { PlusCircle, Search, Settings, Trash2, Link, Info } from "lucide-react"
-import { containsUrls, extractUrls, convertUrlsToLinks } from "@/lib/text-utils"
+import { PlusCircle, Search, Settings, Trash2, Link, Calendar as CalendarIcon, User, Filter } from "lucide-react"
+import { containsUrls, convertUrlsToLinks } from "@/lib/text-utils"
+import { FaqForm } from "@/components/faq-form"
+import { FAQ_CATEGORIES } from "@/lib/constants"
+import Fuse from "fuse.js"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Calendar } from "@/components/ui/calendar"
+import { format } from "date-fns"
+import { ptBR } from "date-fns/locale"
+import { cn } from "@/lib/utils"
 
-// --- Constante única para categorias (fonte de verdade) ---
-const CATEGORIES = [
-  { id: "automacao", name: "Automação" },
-  { id: "gerente", name: "Gerente" },
-  { id: "gerente-web", name: "Gerente Web" },
-  { id: "impressoras", name: "Impressoras" },
-  { id: "instalacao", name: "Instalação" },
-  { id: "integracao", name: "Integração" },
-  { id: "pdv", name: "PDV" },
-  { id: "pdv-movel", name: "PDV Móvel" },
-  { id: "pinpad", name: "PINPAD" },
-]
-
-// --- Componente de Formulário Reutilizável ---
-function FaqForm({
-  faq,
-  onSave,
-  onCancel,
-  isLoading,
-  autores,
-}: {
-  faq: Partial<FAQ>
-  onSave: (faqData: Partial<FAQ>) => void
-  onCancel: () => void
-  isLoading: boolean
-  autores: Author[]
-}) {
-  const [formData, setFormData] = useState<Partial<FAQ>>({
-    ...faq,
-    images: Array.isArray(faq.images) ? faq.images : [],
-  })
-
-  const handleImagesSelected = useCallback((images: ImageWithMetadata[]) => {
-    setFormData((prev) => ({ ...prev, images }))
-  }, [])
-
-  const handleChange = (field: keyof Omit<FAQ, "id" | "created_at">, value: string | ImageWithMetadata[]) => {
-    setFormData((prev) => ({ ...prev, [field]: value }))
-  }
-
-  // Detectar URLs na descrição
-  const hasUrls = formData.description ? containsUrls(formData.description) : false
-  const urlCount = formData.description ? extractUrls(formData.description).length : 0
-
-  return (
-    <>
-      <DialogHeader>
-        <DialogTitle>{formData.id ? "Editar Artigo" : "Adicionar Novo Artigo"}</DialogTitle>
-        <DialogDescription>Preencha os detalhes para gerir o artigo na base de conhecimento.</DialogDescription>
-      </DialogHeader>
-      <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto pr-4">
-        <div className="grid gap-2">
-          <Label htmlFor="title">Título</Label>
-          <Input
-            id="title"
-            value={formData.title || ""}
-            onChange={(e) => handleChange("title", e.target.value)}
-            placeholder="Título do artigo"
-          />
-        </div>
-        <div className="grid gap-2">
-          <Label htmlFor="category">Categoria</Label>
-          <Select value={formData.category} onValueChange={(value) => handleChange("category", value)}>
-            <SelectTrigger>
-              <SelectValue placeholder="Selecione uma categoria" />
-            </SelectTrigger>
-            <SelectContent>
-              {CATEGORIES.map((cat) => (
-                <SelectItem key={cat.id} value={cat.id}>
-                  {cat.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="grid gap-2">
-          <Label htmlFor="description">Descrição / Conteúdo</Label>
-          <Textarea
-            id="description"
-            value={formData.description || ""}
-            onChange={(e) => handleChange("description", e.target.value)}
-            placeholder="Escreva o conteúdo do artigo aqui... URLs serão automaticamente convertidas em links clicáveis.
-
-Exemplos de URLs que funcionam:
-• https://www.exemplo.com
-• http://site.com.br
-• www.documentacao.com
-• github.com/usuario/projeto"
-            rows={8}
-          />
-
-          {/* Indicador de URLs detectadas */}
-          {hasUrls && (
-            <div className="flex items-center gap-2 p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
-              <Link className="h-4 w-4 text-blue-600" />
-              <span className="text-sm text-blue-700 dark:text-blue-300">
-                {urlCount} {urlCount === 1 ? "URL detectada" : "URLs detectadas"} -
-                {urlCount === 1 ? " será convertida" : " serão convertidas"} em link{urlCount === 1 ? "" : "s"} clicável
-                {urlCount === 1 ? "" : "is"} automaticamente
-              </span>
-            </div>
-          )}
-
-          <div className="flex items-start gap-2 p-3 bg-amber-50 dark:bg-amber-950/20 rounded-lg border border-amber-200 dark:border-amber-800">
-            <Info className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
-            <div className="text-sm text-amber-700 dark:text-amber-300">
-              <p className="font-medium mb-1">💡 Dica sobre URLs:</p>
-              <p>URLs adicionadas na descrição ficam automaticamente clicáveis na visualização. Suporte para:</p>
-              <ul className="list-disc list-inside mt-1 space-y-0.5">
-                <li>https://exemplo.com</li>
-                <li>http://site.com.br</li>
-                <li>www.documentacao.com</li>
-                <li>github.com/projeto</li>
-              </ul>
-            </div>
-          </div>
-        </div>
-        <div className="grid gap-2">
-          <Label htmlFor="author">Autor</Label>
-          <Select value={formData.author || ""} onValueChange={(value) => handleChange("author", value)}>
-            <SelectTrigger>
-              <SelectValue placeholder="Selecione o autor" />
-            </SelectTrigger>
-            <SelectContent>
-              {autores.length > 0 ? (
-                autores.map((autor) => (
-                  <SelectItem key={autor.id} value={autor.name}>
-                    {autor.name}
-                  </SelectItem>
-                ))
-              ) : (
-                <SelectItem value="none" disabled>
-                  Nenhum autor
-                </SelectItem>
-              )}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="grid gap-2">
-          <Label>Imagens</Label>
-          <ImageUpload onImagesSelected={handleImagesSelected} initialImages={formData.images as ImageWithMetadata[]} />
-        </div>
-      </div>
-      <DialogFooter>
-        <Button variant="outline" onClick={onCancel}>
-          Cancelar
-        </Button>
-        <Button onClick={() => onSave(formData)} disabled={isLoading}>
-          {isLoading ? "A guardar..." : "Guardar"}
-        </Button>
-      </DialogFooter>
-    </>
-  )
-}
-
-// --- Componente Principal da Página ---
 export default function BaseConhecimentoPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -207,14 +49,18 @@ export default function BaseConhecimentoPage() {
   const { playSuccessSound } = useAudioFeedback()
   const { autores, fetchAutores, subscribeToAutores } = useAppStore()
 
+  // Filtros
   const [searchTerm, setSearchTerm] = useState(searchParams.get("q") || "")
   const [selectedCategory, setSelectedCategory] = useState(searchParams.get("category") || "all")
+  const [selectedAuthor, setSelectedAuthor] = useState("all")
+  const [dateRange, setDateRange] = useState<{ from?: Date; to?: Date }>({})
+
   const debouncedSearchTerm = useDebounce(searchTerm, 300)
 
   // Test database connection
   const testDatabaseConnection = useCallback(async () => {
     try {
-      const { data, error } = await supabase.from("faqs").select("count", { count: "exact", head: true })
+      const { error } = await supabase.from("faqs").select("count", { count: "exact", head: true })
       if (error) {
         console.error("Database connection error:", error)
         setConnectionError(`Erro de conexão: ${error.message}`)
@@ -234,7 +80,6 @@ export default function BaseConhecimentoPage() {
     setConnectionError(null)
 
     try {
-      // Test connection first
       const isConnected = await testDatabaseConnection()
       if (!isConnected) {
         setLoading(false)
@@ -273,17 +118,30 @@ export default function BaseConhecimentoPage() {
     return () => {
       if (typeof unsubscribe === "function") unsubscribe()
     }
-  }, []) // Empty dependency array - only run on mount
+  }, [])
 
-  // Update URL when search/filter changes (without causing re-renders)
+  // Check for editId in URL
+  useEffect(() => {
+    const editId = searchParams.get("editId")
+    if (editId && artigos.length > 0) {
+      const faqToEdit = artigos.find((a) => a.id === editId)
+      if (faqToEdit) {
+        handleAbrirForm(faqToEdit)
+        // Clean URL
+        const params = new URLSearchParams(searchParams.toString())
+        params.delete("editId")
+        router.replace(`${window.location.pathname}?${params.toString()}`)
+      }
+    }
+  }, [searchParams, artigos, router])
+
+  // Update URL when search/filter changes
   useEffect(() => {
     const params = new URLSearchParams()
-    if (debouncedSearchTerm) {
-      params.set("q", debouncedSearchTerm)
-    }
-    if (selectedCategory && selectedCategory !== "all") {
-      params.set("category", selectedCategory)
-    }
+    if (debouncedSearchTerm) params.set("q", debouncedSearchTerm)
+    if (selectedCategory && selectedCategory !== "all") params.set("category", selectedCategory)
+
+    // Note: Not storing Date/Author in URL for now to keep it simple, but could be added
 
     const newUrl = `${window.location.pathname}?${params.toString()}`
     if (window.location.href !== window.location.origin + newUrl) {
@@ -309,8 +167,6 @@ export default function BaseConhecimentoPage() {
 
       setProcessing(true)
       try {
-        console.log("Saving FAQ:", faqData)
-
         const faqToSave = {
           title: faqData.title,
           category: faqData.category,
@@ -320,34 +176,18 @@ export default function BaseConhecimentoPage() {
         }
 
         if (faqData.id) {
-          console.log("Updating existing FAQ with ID:", faqData.id)
-          const { data, error } = await supabase.from("faqs").update(faqToSave).eq("id", faqData.id).select()
-
-          if (error) {
-            console.error("Error updating FAQ:", error)
-            throw error
-          }
-
-          console.log("FAQ updated successfully:", data)
+          const { error } = await supabase.from("faqs").update(faqToSave).eq("id", faqData.id)
+          if (error) throw error
           toast({ title: "Sucesso", description: "Artigo atualizado com sucesso." })
         } else {
-          console.log("Creating new FAQ")
-          const { data, error } = await supabase.from("faqs").insert([faqToSave]).select()
-
-          if (error) {
-            console.error("Error creating FAQ:", error)
-            throw error
-          }
-
-          console.log("FAQ created successfully:", data)
+          const { error } = await supabase.from("faqs").insert([faqToSave])
+          if (error) throw error
           toast({ title: "Sucesso", description: "Novo artigo adicionado." })
         }
 
-        // Play success sound after successful save
         playSuccessSound()
-
         setIsFormOpen(false)
-        fetchArtigos() // Refresh the list
+        fetchArtigos()
       } catch (error) {
         console.error("Failed to save FAQ:", error)
         const errorMessage = error instanceof Error ? error.message : "Erro desconhecido"
@@ -368,17 +208,10 @@ export default function BaseConhecimentoPage() {
 
     setProcessing(true)
     try {
-      console.log("Deleting FAQ with ID:", faqParaRemover.id)
       const { error } = await supabase.from("faqs").delete().eq("id", faqParaRemover.id)
-
-      if (error) {
-        console.error("Error deleting FAQ:", error)
-        throw error
-      }
-
-      console.log("FAQ deleted successfully")
+      if (error) throw error
       toast({ title: "Artigo removido", description: "O artigo foi removido com sucesso." })
-      fetchArtigos() // Refresh the list
+      fetchArtigos()
     } catch (error) {
       console.error("Failed to delete FAQ:", error)
       const errorMessage = error instanceof Error ? error.message : "Erro desconhecido"
@@ -393,25 +226,59 @@ export default function BaseConhecimentoPage() {
     }
   }, [faqParaRemover, toast, fetchArtigos])
 
-  const filteredFaqs = useMemo(
-    () =>
-      artigos.filter((faq) => {
-        const matchesSearch =
-          (faq.title?.toLowerCase() || "").includes(debouncedSearchTerm.toLowerCase()) ||
-          (faq.description?.toLowerCase() || "").includes(debouncedSearchTerm.toLowerCase())
-        const matchesCategory = selectedCategory === "all" || faq.category === selectedCategory
-        return matchesSearch && matchesCategory
-      }),
-    [artigos, debouncedSearchTerm, selectedCategory],
-  )
+  // Configuração do Fuse.js para busca Fuzzy
+  const fuse = useMemo(() => {
+    return new Fuse(artigos, {
+      keys: ['title', 'description', 'category'],
+      threshold: 0.4, // 0.0 = exact match, 1.0 = match anything
+      includeScore: true
+    })
+  }, [artigos])
 
-  // Função para obter o nome da categoria pelo ID
+  const filteredFaqs = useMemo(() => {
+    let results = artigos
+
+    // 1. Busca Fuzzy (se houver termo)
+    if (debouncedSearchTerm) {
+      const fuseResults = fuse.search(debouncedSearchTerm)
+      results = fuseResults.map(result => result.item)
+    }
+
+    // 2. Filtros
+    return results.filter((faq) => {
+      // Categoria
+      if (selectedCategory !== "all" && faq.category !== selectedCategory) return false
+
+      // Autor
+      if (selectedAuthor !== "all" && faq.author !== selectedAuthor) return false
+
+      // Data
+      if (dateRange.from) {
+        const faqDate = new Date(faq.created_at)
+        faqDate.setHours(0, 0, 0, 0)
+        const fromDate = new Date(dateRange.from)
+        fromDate.setHours(0, 0, 0, 0)
+
+        if (faqDate < fromDate) return false
+      }
+      if (dateRange.to) {
+        const faqDate = new Date(faq.created_at)
+        faqDate.setHours(0, 0, 0, 0)
+        const toDate = new Date(dateRange.to)
+        toDate.setHours(23, 59, 59, 999)
+
+        if (faqDate > toDate) return false
+      }
+
+      return true
+    })
+  }, [artigos, debouncedSearchTerm, selectedCategory, selectedAuthor, dateRange, fuse])
+
   const getCategoryName = useCallback((categoryId: string) => {
-    const category = CATEGORIES.find((cat) => cat.id === categoryId)
+    const category = FAQ_CATEGORIES.find((cat) => cat.id === categoryId)
     return category ? category.name : categoryId
   }, [])
 
-  // Show connection error if exists
   if (connectionError) {
     return (
       <main className="flex-1 bg-gray-50/50 dark:bg-gray-900/50 p-6 md:p-8">
@@ -424,13 +291,10 @@ export default function BaseConhecimentoPage() {
           </div>
           <div className="bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 rounded-lg p-6">
             <div className="flex items-center gap-3">
+              {/* Error Icon */}
               <div className="flex-shrink-0">
                 <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
-                  <path
-                    fillRule="evenodd"
-                    d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
-                    clipRule="evenodd"
-                  />
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
                 </svg>
               </div>
               <div>
@@ -443,7 +307,6 @@ export default function BaseConhecimentoPage() {
                   <ul className="list-disc list-inside mt-1">
                     <li>Se as variáveis de ambiente estão configuradas corretamente</li>
                     <li>Se a base de dados Supabase está acessível</li>
-                    <li>Se a tabela 'faqs' existe na base de dados</li>
                   </ul>
                 </div>
                 <div className="mt-4">
@@ -468,34 +331,117 @@ export default function BaseConhecimentoPage() {
             Encontre artigos, tutoriais e soluções para as suas dúvidas.
           </p>
         </div>
-        <div className="mb-8 flex flex-col items-center gap-4 md:flex-row">
-          <div className="relative flex-1 w-full">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-            <Input
-              className="pl-10 h-11"
-              placeholder="Pesquisar artigos..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
+
+        {/* --- Toolbar de Busca e Filtros --- */}
+        <div className="mb-8 space-y-4">
+          <div className="flex flex-col md:flex-row gap-4">
+            <div className="relative flex-1 w-full">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+              <Input
+                className="pl-10 h-11"
+                placeholder="Pesquisar artigos (Busca inteligente)..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
+
+            <Button className="w-full md:w-auto shadow-sm h-11" onClick={() => handleAbrirForm()}>
+              <PlusCircle className="mr-2 h-5 w-5" />
+              Novo Artigo
+            </Button>
           </div>
-          <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-            <SelectTrigger className="w-full md:w-[220px] h-11">
-              <SelectValue placeholder="Categorias" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todas as Categorias</SelectItem>
-              {CATEGORIES.map((cat) => (
-                <SelectItem key={cat.id} value={cat.id}>
-                  {cat.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Button className="w-full md:w-auto shadow-sm h-11" onClick={() => handleAbrirForm()}>
-            <PlusCircle className="mr-2 h-5 w-5" />
-            Novo Artigo
-          </Button>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2 text-sm text-gray-500 mr-2">
+              <Filter className="h-4 w-4" />
+              <span className="font-medium">Filtros:</span>
+            </div>
+
+            {/* Filtro: Categoria */}
+            <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+              <SelectTrigger className="w-[180px] h-9">
+                <SelectValue placeholder="Categoria" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas as Categorias</SelectItem>
+                {FAQ_CATEGORIES.map((cat) => (
+                  <SelectItem key={cat.id} value={cat.id}>
+                    {cat.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {/* Filtro: Data */}
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant={"outline"}
+                  className={cn(
+                    "w-[240px] justify-start text-left font-normal h-9",
+                    !dateRange.from && "text-muted-foreground"
+                  )}
+                >
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {dateRange.from ? (
+                    dateRange.to ? (
+                      <>
+                        {format(dateRange.from, "dd/MM/yyyy")} - {format(dateRange.to, "dd/MM/yyyy")}
+                      </>
+                    ) : (
+                      format(dateRange.from, "dd/MM/yyyy")
+                    )
+                  ) : (
+                    <span>Filtrar por data</span>
+                  )}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="range"
+                  selected={dateRange}
+                  onSelect={(range: any) => setDateRange(range || {})}
+                  initialFocus
+                  locale={ptBR}
+                />
+              </PopoverContent>
+            </Popover>
+
+            {/* Filtro: Autor */}
+            <Select value={selectedAuthor} onValueChange={setSelectedAuthor}>
+              <SelectTrigger className="w-[180px] h-9">
+                <User className="mr-2 h-4 w-4" />
+                <SelectValue placeholder="Autor" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos os Autores</SelectItem>
+                {autores.map((autor) => (
+                  <SelectItem key={autor.id} value={autor.name}>
+                    {autor.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            {/* Limpar Filtros */}
+            {(selectedCategory !== "all" || selectedAuthor !== "all" || dateRange.from || searchTerm) && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-9 ml-auto text-muted-foreground hover:text-foreground"
+                onClick={() => {
+                  setSelectedCategory("all")
+                  setSelectedAuthor("all")
+                  setDateRange({})
+                  setSearchTerm("")
+                }}
+              >
+                Limpar Filtros
+              </Button>
+            )}
+          </div>
         </div>
+
         <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
           <DialogContent className="sm:max-w-2xl">
             {faqEmEdicao && (
@@ -510,6 +456,7 @@ export default function BaseConhecimentoPage() {
             )}
           </DialogContent>
         </Dialog>
+
         <AlertDialog open={!!faqParaRemover} onOpenChange={(open) => !open && setFaqParaRemover(null)}>
           <AlertDialogContent>
             <AlertDialogHeader>
@@ -529,9 +476,10 @@ export default function BaseConhecimentoPage() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
         {loading ? (
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {Array.from({ length: 6 }).map((_, i) => (
+            {Array.from({ length: 9 }).map((_, i) => (
               <Card key={i} className="p-4">
                 <Skeleton className="h-48 w-full rounded-lg" />
               </Card>
@@ -541,7 +489,6 @@ export default function BaseConhecimentoPage() {
           <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
             {filteredFaqs.length > 0 ? (
               filteredFaqs.map((artigo) => {
-                // Detectar se o artigo tem URLs na descrição
                 const hasUrls = artigo.description ? containsUrls(artigo.description) : false
 
                 return (
@@ -600,8 +547,25 @@ export default function BaseConhecimentoPage() {
               })
             ) : (
               <div className="col-span-full py-16 text-center text-gray-500">
-                <p className="text-lg">Nenhum artigo encontrado.</p>
-                <p className="mt-1 text-sm">Tente ajustar os seus termos de pesquisa ou filtros.</p>
+                <Search className="h-12 w-12 mx-auto text-gray-300 mb-4" />
+                <p className="text-lg font-medium">Nenhum artigo encontrado.</p>
+                <p className="mt-1 text-sm text-gray-400">
+                  Tente ajustar os termos de pesquisa ou remover alguns filtros.
+                </p>
+                {(selectedCategory !== "all" || selectedAuthor !== "all" || dateRange.from || searchTerm) && (
+                  <Button
+                    variant="link"
+                    className="mt-2"
+                    onClick={() => {
+                      setSelectedCategory("all")
+                      setSelectedAuthor("all")
+                      setDateRange({})
+                      setSearchTerm("")
+                    }}
+                  >
+                    Limpar todos os filtros
+                  </Button>
+                )}
               </div>
             )}
           </div>
