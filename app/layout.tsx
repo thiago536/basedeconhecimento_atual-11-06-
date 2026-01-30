@@ -3,7 +3,7 @@ import type { Metadata } from "next"
 import { Inter } from "next/font/google"
 import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
-import { SidebarProvider } from "@/components/ui/sidebar"
+import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/components/app-sidebar"
 import { SidebarInset } from "@/components/ui/sidebar"
 import { Toaster } from "@/components/ui/toaster"
@@ -41,6 +41,12 @@ export default function RootLayout({
             <SidebarProvider>
               <AppSidebar />
               <SidebarInset>
+                <header className="flex h-14 items-center gap-2 border-b bg-background px-4 md:hidden">
+                  <div className="flex flex-1 items-center gap-2">
+                    <SidebarTrigger />
+                    <span className="font-semibold">E-PROSYS</span>
+                  </div>
+                </header>
                 <ImageCleanupProvider>{children}</ImageCleanupProvider>
               </SidebarInset>
               <Toaster />
