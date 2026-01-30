@@ -822,30 +822,287 @@ export default function DashboardAdministrativaPage() {
 
             {/* MODAIS (RANKING, PREVISÃO, SALA DE GUERRA) - MANTIDOS IGUAIS */}
             {/* 1. PREVISÃO SEMANAL */}
-            {showPredictionModal && weeklyPrediction && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/95 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-                    <div className="bg-white w-full max-w-3xl rounded-xl shadow-2xl p-6 relative">
-                        <button onClick={() => setShowPredictionModal(false)} className="absolute top-4 right-4 bg-slate-100 p-2 rounded-full hover:bg-slate-200 transition-colors"><X className="h-5 w-5" /></button>
-                        <div className="flex items-center gap-3 mb-6">
-                            <div className="p-3 bg-purple-100 text-purple-600 rounded-lg"><Sparkles className="h-6 w-6" /></div>
-                            <div>
-                                <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-                                    Previsão Semanal Inteligente
-                                    {/* ✅ AVISO DE MOCK NO TÍTULO */}
-                                    {weeklyPrediction.mock && <Badge variant="outline" className="text-xs bg-amber-50 text-amber-700 border-amber-200">Dados Simulados</Badge>}
-                                </h2>
-                                <p className="text-sm text-slate-500">Projeção estatística baseada nos últimos 90 dias</p>
+            {showPredictionModal && weeklyPrediction && (() => {
+                // 🎨 COMPONENTES AUXILIARES MODULARES
+                const MetricCard = ({
+                    icon: Icon,
+                    label,
+                    value,
+                    trend,
+                    iconColor
+                }: {
+                    icon: any,
+                    label: string,
+                    value: string,
+                    trend?: 'up' | 'down',
+                    iconColor: string
+                }) => (
+                    <div className="bg-gradient-to-br from-slate-50 to-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all group">
+                        <div className="flex items-center justify-between mb-3">
+                            <div className={`p-3 rounded-xl ${iconColor} group-hover:scale-110 transition-transform`}>
+                                <Icon className="h-6 w-6" />
+                            </div>
+                            {trend && (
+                                <div className={`flex items-center gap-1 text-xs font-bold ${trend === 'up' ? 'text-emerald-600' : 'text-amber-600'}`}>
+                                    {trend === 'up' ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
+                                </div>
+                            )}
+                        </div>
+                        <p className="text-xs text-slate-500 uppercase font-bold tracking-wide mb-1">{label}</p>
+                        <p className="text-2xl font-extrabold text-slate-900">{value}</p>
+                    </div>
+                )
+
+                const RecommendationPanel = ({
+                    recomendacao
+                }: {
+                    recomendacao?: { agentes: number, motivo: string, prioridade: 'alta' | 'média' | 'baixa' | 'fixa' }
+                }) => {
+                    if (!recomendacao) return null
+
+                    const prioridadeConfig = {
+                        alta: { bg: 'bg-red-50', border: 'border-red-300', text: 'text-red-700', badge: 'bg-red-600' },
+                        média: { bg: 'bg-amber-50', border: 'border-amber-300', text: 'text-amber-700', badge: 'bg-amber-600' },
+                        baixa: { bg: 'bg-blue-50', border: 'border-blue-300', text: 'text-blue-700', badge: 'bg-blue-600' },
+                        fixa: { bg: 'bg-slate-50', border: 'border-slate-300', text: 'text-slate-700', badge: 'bg-slate-600' }
+                    }
+                    const config = prioridadeConfig[recomendacao.prioridade]
+
+                    return (
+                        <div className={`${config.bg} border-2 ${config.border} border-dashed rounded-2xl p-5 space-y-3`}>
+                            <div className="flex items-center justify-between">
+                                <h4 className="text-sm font-extrabold text-slate-800 uppercase tracking-wide flex items-center gap-2">
+                                    <BrainCircuit className="h-5 w-5 text-indigo-600" />
+                                    Recomendação da IA
+                                </h4>
+                                <span className={`${config.badge} text-white text-[10px] font-bold uppercase px-2 py-1 rounded-full`}>
+                                    {recomendacao.prioridade}
+                                </span>
+                            </div>
+                            <div className="space-y-2">
+                                <div className="flex items-center gap-3">
+                                    <div className="bg-white p-2 rounded-lg shadow-sm">
+                                        <Users className="h-5 w-5 text-indigo-600" />
+                                    </div>
+                                    <div>
+                                        <p className="text-xs text-slate-500 font-medium">Staff Sugerido</p>
+                                        <p className="text-2xl font-black text-slate-900">{recomendacao.agentes}</p>
+                                    </div>
+                                </div>
+                                <div className={`${config.text} text-xs font-medium leading-relaxed bg-white/60 p-3 rounded-lg`}>
+                                    ℹ️ {recomendacao.motivo}
+                                </div>
                             </div>
                         </div>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                            <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 flex items-center gap-3">{weeklyPrediction.tendencia?.includes('crescente') ? <TrendingUp className="h-8 w-8 text-emerald-500" /> : <TrendingDown className="h-8 w-8 text-amber-500" />}<div><p className="text-xs text-slate-400 uppercase font-bold">Tendência</p><p className="text-lg font-bold text-slate-800">{weeklyPrediction.tendencia}</p></div></div>
-                            <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 flex items-center gap-3"><Users className="h-8 w-8 text-blue-500" /><div><p className="text-xs text-slate-400 uppercase font-bold">Média Histórica</p><p className="text-lg font-bold text-slate-800">{weeklyPrediction.mediaHistorica ? `~${weeklyPrediction.mediaHistorica} /dia` : "-"}</p></div></div>
-                            <div className="p-4 bg-slate-50 rounded-xl border border-slate-100 flex items-center gap-3"><Calendar className="h-8 w-8 text-purple-500" /><div><p className="text-xs text-slate-400 uppercase font-bold">Pico Previsto</p><p className="text-lg font-bold text-slate-800">{weeklyPrediction.projecao7Dias?.reduce((prev, current) => (prev.previsao > current.previsao) ? prev : current).dia}</p></div></div>
+                    )
+                }
+
+                // 🧮 CÁLCULO DO PICO PREVISTO
+                const picoPrevisto = weeklyPrediction.projecao7Dias?.reduce(
+                    (prev, current) => (prev.previsao > current.previsao) ? prev : current
+                ) || null
+
+                return (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-gradient-to-br from-slate-900 via-indigo-900 to-slate-900 bg-opacity-98 backdrop-blur-md p-4 animate-in fade-in duration-300">
+                        <div className="bg-white w-full max-w-6xl rounded-3xl shadow-2xl overflow-hidden border-2 border-indigo-200">
+
+                            {/* 🎯 HEADER PREMIUM */}
+                            <div className="bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-600 p-6 relative overflow-hidden">
+                                <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSAxMCAwIEwgMCAwIDAgMTAiIGZpbGw9Im5vbmUiIHN0cm9rZT0id2hpdGUiIHN0cm9rZS1vcGFjaXR5PSIwLjA1IiBzdHJva2Utd2lkdGg9IjEiLz48L3BhdHRlcm4+PC9kZWZzPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9InVybCgjZ3JpZCkiLz48L3N2Zz4=')] opacity-30"></div>
+                                <div className="relative flex items-center justify-between">
+                                    <div className="flex items-center gap-4">
+                                        <div className="bg-white/20 backdrop-blur-sm p-3 rounded-2xl">
+                                            <Sparkles className="h-8 w-8 text-white animate-pulse" />
+                                        </div>
+                                        <div>
+                                            <div className="flex items-center gap-3">
+                                                <h2 className="text-2xl font-black text-white tracking-tight">
+                                                    Dashboard Preditivo de Atendimento
+                                                </h2>
+                                                {weeklyPrediction.mock && (
+                                                    <span className="bg-amber-500 text-white text-xs font-bold uppercase px-3 py-1.5 rounded-full shadow-lg animate-pulse">
+                                                        🧪 Modo Simulação
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <p className="text-indigo-100 text-sm mt-1 font-medium">
+                                                Análise preditiva baseada em 90 dias de histórico • IA de Alocação Dinâmica
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <button
+                                        onClick={() => setShowPredictionModal(false)}
+                                        className="bg-white/10 hover:bg-white/20 backdrop-blur-sm p-3 rounded-xl transition-all text-white border border-white/20"
+                                    >
+                                        <X className="h-6 w-6" />
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* 📊 CONTEÚDO PRINCIPAL - LAYOUT 2 COLUNAS */}
+                            <div className="p-8 bg-gradient-to-br from-slate-50 to-white">
+                                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+
+                                    {/* ═══ COLUNA ESQUERDA (8/12) - GRÁFICO E MÉTRICAS ═══ */}
+                                    <div className="lg:col-span-8 space-y-6">
+
+                                        {/* CARDS DE MÉTRICAS */}
+                                        <div className="grid grid-cols-3 gap-4">
+                                            <MetricCard
+                                                icon={weeklyPrediction.tendencia?.includes('crescente') ? TrendingUp : TrendingDown}
+                                                label="Tendência"
+                                                value={weeklyPrediction.tendencia || "-"}
+                                                trend={weeklyPrediction.tendencia?.includes('crescente') ? 'up' : 'down'}
+                                                iconColor={weeklyPrediction.tendencia?.includes('crescente')
+                                                    ? "bg-emerald-100 text-emerald-600"
+                                                    : "bg-amber-100 text-amber-600"}
+                                            />
+                                            <MetricCard
+                                                icon={Users}
+                                                label="Média Histórica"
+                                                value={weeklyPrediction.mediaHistorica ? `${weeklyPrediction.mediaHistorica}/dia` : "-"}
+                                                iconColor="bg-blue-100 text-blue-600"
+                                            />
+                                            <MetricCard
+                                                icon={Calendar}
+                                                label="Pico Previsto"
+                                                value={picoPrevisto?.dia || "-"}
+                                                iconColor="bg-purple-100 text-purple-600"
+                                            />
+                                        </div>
+
+                                        {/* GRÁFICO PRINCIPAL */}
+                                        <div className="bg-white rounded-2xl border-2 border-slate-200 shadow-lg p-6">
+                                            <div className="flex items-center justify-between mb-4">
+                                                <h3 className="text-sm font-extrabold text-slate-700 uppercase tracking-wide flex items-center gap-2">
+                                                    <Activity className="h-4 w-4 text-indigo-600" />
+                                                    Curva de Demanda Prevista (7 Dias)
+                                                </h3>
+                                                <div className="flex items-center gap-2 text-xs text-slate-500">
+                                                    <div className="flex items-center gap-1">
+                                                        <div className="w-3 h-3 rounded-full bg-purple-500"></div>
+                                                        <span>Previsão</span>
+                                                    </div>
+                                                    <div className="flex items-center gap-1">
+                                                        <div className="w-3 h-0.5 bg-slate-400"></div>
+                                                        <span>Média</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div className="h-[350px] w-full">
+                                                <ResponsiveContainer width="100%" height="100%">
+                                                    <AreaChart data={weeklyPrediction.projecao7Dias}>
+                                                        <defs>
+                                                            <linearGradient id="colorPrevisao" x1="0" y1="0" x2="0" y2="1">
+                                                                <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.4} />
+                                                                <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0.05} />
+                                                            </linearGradient>
+                                                        </defs>
+                                                        <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                                                        <XAxis
+                                                            dataKey="dia"
+                                                            axisLine={false}
+                                                            tickLine={false}
+                                                            tick={{ fill: '#64748b', fontSize: 12, fontWeight: 600 }}
+                                                        />
+                                                        <YAxis
+                                                            axisLine={false}
+                                                            tickLine={false}
+                                                            tick={{ fill: '#64748b', fontSize: 12 }}
+                                                            width={40}
+                                                        />
+                                                        <Tooltip
+                                                            cursor={{ stroke: '#8b5cf6', strokeWidth: 2, strokeDasharray: '5 5' }}
+                                                            contentStyle={{
+                                                                borderRadius: '12px',
+                                                                border: '2px solid #8b5cf6',
+                                                                boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.2)',
+                                                                backgroundColor: '#ffffff'
+                                                            }}
+                                                            labelFormatter={(label, payload) => payload[0]?.payload.dataCompleta || label}
+                                                            formatter={(value: number) => [`${value} atendimentos`, 'Previsão']}
+                                                        />
+                                                        {weeklyPrediction.mediaHistorica && (
+                                                            <ReferenceLine
+                                                                y={weeklyPrediction.mediaHistorica}
+                                                                stroke="#94a3b8"
+                                                                strokeDasharray="5 5"
+                                                                strokeWidth={2}
+                                                                label={{
+                                                                    position: 'top',
+                                                                    value: `Média: ${weeklyPrediction.mediaHistorica}`,
+                                                                    fill: '#64748b',
+                                                                    fontSize: 11,
+                                                                    fontWeight: 700
+                                                                }}
+                                                            />
+                                                        )}
+                                                        <Area
+                                                            type="monotone"
+                                                            dataKey="previsao"
+                                                            stroke="#8b5cf6"
+                                                            strokeWidth={3}
+                                                            fill="url(#colorPrevisao)"
+                                                            activeDot={{ r: 8, strokeWidth: 3, stroke: '#ffffff', fill: '#7c3aed' }}
+                                                            animationDuration={1000}
+                                                        />
+                                                    </AreaChart>
+                                                </ResponsiveContainer>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* ═══ COLUNA DIREITA (4/12) - INSIGHTS E AÇÕES ═══ */}
+                                    <div className="lg:col-span-4 space-y-6">
+
+                                        {/* ANÁLISE DE PICO */}
+                                        {picoPrevisto && (
+                                            <div className="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-2xl border-2 border-purple-200 p-5 space-y-4">
+                                                <div className="flex items-center gap-2">
+                                                    <div className="bg-purple-600 p-2 rounded-lg">
+                                                        <AlertTriangle className="h-5 w-5 text-white" />
+                                                    </div>
+                                                    <h4 className="text-sm font-extrabold text-purple-900 uppercase tracking-wide">
+                                                        Análise de Pico
+                                                    </h4>
+                                                </div>
+                                                <div className="space-y-3">
+                                                    <div className="bg-white rounded-xl p-4 shadow-sm">
+                                                        <p className="text-xs text-slate-500 font-medium mb-1">Dia Crítico</p>
+                                                        <p className="text-2xl font-black text-purple-900">{picoPrevisto.dia}</p>
+                                                        <p className="text-xs text-slate-500 mt-1">{picoPrevisto.dataCompleta}</p>
+                                                    </div>
+                                                    <div className="bg-white rounded-xl p-4 shadow-sm">
+                                                        <p className="text-xs text-slate-500 font-medium mb-1">Volume Esperado</p>
+                                                        <p className="text-3xl font-black text-indigo-600">{picoPrevisto.previsao}</p>
+                                                        <p className="text-xs text-emerald-600 font-bold mt-1">
+                                                            +{((picoPrevisto.previsao / (weeklyPrediction.mediaHistorica || 1) - 1) * 100).toFixed(0)}% vs média
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* RECOMENDAÇÕES ACIONÁVEIS */}
+                                        <RecommendationPanel recomendacao={weeklyPrediction.recomendacao} />
+
+                                        {/* RODAPÉ INFORMATIVO */}
+                                        <div className="bg-slate-100 rounded-xl p-4 border border-slate-200">
+                                            <div className="flex items-start gap-2">
+                                                <Info className="h-4 w-4 text-slate-400 shrink-0 mt-0.5" />
+                                                <p className="text-[10px] text-slate-500 leading-relaxed">
+                                                    <strong>Modelo Preditivo:</strong> Algoritmo de regressão linear baseado em padrões históricos.
+                                                    Atualização automática a cada 24h.
+                                                </p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
-                        <div className="h-[300px] w-full mt-4"><h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Curva de Demanda Prevista</h4><ResponsiveContainer width="100%" height="100%"><AreaChart data={weeklyPrediction.projecao7Dias}><defs><linearGradient id="colorPrevisao" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3} /><stop offset="95%" stopColor="#8b5cf6" stopOpacity={0} /></linearGradient></defs><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" /><XAxis dataKey="dia" axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 12 }} /><YAxis axisLine={false} tickLine={false} tick={{ fill: '#64748b', fontSize: 12 }} /><Tooltip cursor={{ stroke: '#8b5cf6', strokeWidth: 1, strokeDasharray: '5 5' }} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} labelFormatter={(label, payload) => payload[0]?.payload.dataCompleta || label} formatter={(value: number) => [`${value} atendimentos`, 'Previsão']} />{weeklyPrediction.mediaHistorica && (<ReferenceLine y={weeklyPrediction.mediaHistorica} stroke="#94a3b8" strokeDasharray="3 3" label={{ position: 'top', value: 'Média', fill: '#94a3b8', fontSize: 10 }} />)}<Area type="monotone" dataKey="previsao" stroke="#8b5cf6" strokeWidth={3} fill="url(#colorPrevisao)" activeDot={{ r: 6, strokeWidth: 0, fill: '#7c3aed' }} /></AreaChart></ResponsiveContainer></div>
                     </div>
-                </div>
-            )}
+                )
+            })()}
 
             {/* 2. RANKING DE GAMIFICAÇÃO (MANTIDO) */}
             {showGamingModal && (
