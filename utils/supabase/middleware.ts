@@ -35,8 +35,7 @@ export async function updateSession(request: NextRequest) {
     } = await supabase.auth.getSession()
     const user = session?.user
 
-    // DIAGNOSTIC MODE: Redirect disabled to debug cookie persistence in v0
-    /*
+    // Redirect unauthenticated users to login
     if (
         !user &&
         !request.nextUrl.pathname.startsWith('/login') &&
@@ -48,7 +47,6 @@ export async function updateSession(request: NextRequest) {
         url.pathname = '/login'
         return NextResponse.redirect(url)
     }
-    */
 
     // If user is logged in and tries to access login page, redirect to home
     if (user && request.nextUrl.pathname.startsWith('/login')) {
