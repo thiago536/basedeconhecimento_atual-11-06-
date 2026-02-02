@@ -28,8 +28,9 @@ export default function HomePage() {
       const month = String(today.getMonth() + 1).padStart(2, "0")
       const dateNumber = Number.parseInt(`${day}${month}`)
 
-      const passSuporte = (Math.floor((dateNumber / 8369) * 10000) % 10000).toString().padStart(4, "0")
-      const passEprosys = (Math.floor((dateNumber / 8597) * 10000) % 10000).toString().padStart(4, "0")
+      // Logic updated to match sidebar: removed padStart(4, "0")
+      const passSuporte = (Math.floor((dateNumber / 8369) * 10000) % 10000).toString()
+      const passEprosys = (Math.floor((dateNumber / 8597) * 10000) % 10000).toString()
 
       setPasswords({ suporte: passSuporte, eprosys: passEprosys })
     }
@@ -37,10 +38,17 @@ export default function HomePage() {
     calculatePasswords()
     setIsLoaded(true)
 
+    // Store the current day to check for changes
+    let currentDayStr = new Date().toLocaleDateString()
+
     const updateTime = () => {
       const now = new Date()
       setCurrentTime(now.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }))
-      if (now.getHours() === 0 && now.getMinutes() === 0 && now.getSeconds() === 0) {
+
+      // Robust day change check
+      const newDayStr = now.toLocaleDateString()
+      if (newDayStr !== currentDayStr) {
+        currentDayStr = newDayStr
         calculatePasswords()
       }
     }
