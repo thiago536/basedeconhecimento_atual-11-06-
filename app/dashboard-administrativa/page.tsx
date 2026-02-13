@@ -290,7 +290,8 @@ export default function DashboardAdministrativaPage() {
             const { data: dbData } = await query
             if (dbData) {
                 const processedData = dbData
-                    .filter(item => item.origem !== 'ativo') // 🆕 FILTRO: Ignora atendimentos ativos nas estatísticas
+                    // ✅ CORREÇÃO: Removido filtro que bloqueava atendimentos ativos
+                    // Agora atendimentos com origem='ativo' E origem='receptivo' aparecem no dashboard
                     .map((item) => {
                         let statusVisual: Atendimento["status_visual"] = "Em andamento"
                         const s = item.status?.toLowerCase() || ""
