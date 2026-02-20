@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect, useMemo, useCallback } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
@@ -24,12 +24,12 @@ import {
     ComposedChart,
     ReferenceLine
 } from "recharts"
-import { supabase } from "@/lib/supabase" // ✅ Import do singleton
+import { supabase } from "@/lib/supabase" // âœ… Import do singleton
 
-// --- CONFIGURAÇÃO API ---
+// --- CONFIGURAÃ‡ÃƒO API ---
 const API_BASE_URL = "http://localhost:3000/api";
 
-// 🎛️ MASTER SWITCH
+// ðŸŽ›ï¸ MASTER SWITCH
 const ENABLE_GAMIFICATION = true;
 
 const IGNORED_USERS = [
@@ -37,7 +37,7 @@ const IGNORED_USERS = [
     "atendente desconhecido", "atendente", "usuario", "null", "undefined"
 ];
 
-// ✅ FUNÇÃO AUXILIAR: Gera Data BR (YYYY-MM-DD) - MESMA DO BACKEND
+// âœ… FUNÃ‡ÃƒO AUXILIAR: Gera Data BR (YYYY-MM-DD) - MESMA DO BACKEND
 function getDataBrasil() {
     return new Intl.DateTimeFormat('fr-CA', {
         timeZone: 'America/Sao_Paulo'
@@ -56,8 +56,8 @@ interface Atendimento {
     updated_at: string | null
     duration_minutes: number
     status_visual: "Em andamento" | "Sucesso" | "Falha" | "Transferido"
-    avaliacao?: number // ⭐ Campo Novo
-    origem?: 'receptivo' | 'ativo' // 🆕
+    avaliacao?: number // â­ Campo Novo
+    origem?: 'receptivo' | 'ativo' // ðŸ†•
 }
 
 interface MonitorAtendente {
@@ -77,7 +77,7 @@ interface PrevisaoHoraria {
 }
 
 interface AnaliseIA {
-    recomendacao?: { agentes: number; motivo: string; prioridade: 'alta' | 'média' | 'baixa' | 'fixa' };
+    recomendacao?: { agentes: number; motivo: string; prioridade: 'alta' | 'mÃ©dia' | 'baixa' | 'fixa' };
     proximasHoras?: PrevisaoHoraria[]; tendencia?: string; mediaHistorica?: number;
     projecao7Dias?: { dia: string, dataCompleta: string, previsao: number }[];
     mock?: boolean; // Indicador de dados simulados vindo da API
@@ -101,24 +101,98 @@ interface TransferenciaLog {
 
 const COLORS = {
     success: "#10b981", failure: "#ef4444", warning: "#f59e0b",
-    primary: "#3b82f6", neutral: "#94a3b8", purple: "#8b5cf6", prediction: "#8b5cf6"
+    primary: "#3b82f6", neutral: "#94a3b8", prediction: "#6366f1"
 }
 
 const MOTIVE_COLORS = [
-    '#667eea', '#764ba2', '#f093fb', '#f5576c', '#4facfe', '#00f2fe', '#43e97b', '#38f9d7', '#ffecd2', '#fcb69f', '#a8edea', '#fed6e3'
+    '#3b82f6', '#6366f1', '#f093fb', '#f5576c', '#4facfe', '#00f2fe', '#43e97b', '#38f9d7', '#ffecd2', '#fcb69f', '#a8edea', '#fed6e3'
 ];
+
+// --- EXTRACTED COMPONENTS (top-level to avoid re-mounting on each render) ---
+
+interface MetricCardProps {
+    icon: React.ComponentType<{ className?: string }>;
+    label: string;
+    value: string;
+    trend?: 'up' | 'down';
+    iconColor: string;
+}
+
+function MetricCard({ icon: Icon, label, value, trend, iconColor }: MetricCardProps) {
+    return (
+        <div className="bg-gradient-to-br from-slate-50 to-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all group">
+            <div className="flex items-center justify-between mb-3">
+                <div className={`p-3 rounded-xl ${iconColor} group-hover:scale-110 transition-transform`}>
+                    <Icon className="h-6 w-6" />
+                </div>
+                {trend && (
+                    <div className={`flex items-center gap-1 text-xs font-bold ${trend === 'up' ? 'text-emerald-600' : 'text-amber-600'}`}>
+                        {trend === 'up' ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
+                    </div>
+                )}
+            </div>
+            <p className="text-xs text-slate-500 uppercase font-bold tracking-wide mb-1">{label}</p>
+            <p className="text-2xl font-extrabold text-slate-900">{value}</p>
+        </div>
+    )
+}
+
+interface RecommendationPanelProps {
+    recomendacao?: { agentes: number; motivo: string; prioridade: 'alta' | 'média' | 'baixa' | 'fixa' }
+}
+
+function RecommendationPanel({ recomendacao }: RecommendationPanelProps) {
+    if (!recomendacao) return null
+
+    const prioridadeConfig = {
+        alta: { bg: 'bg-red-50', border: 'border-red-300', text: 'text-red-700', badge: 'bg-red-600' },
+        média: { bg: 'bg-amber-50', border: 'border-amber-300', text: 'text-amber-700', badge: 'bg-amber-600' },
+        baixa: { bg: 'bg-blue-50', border: 'border-blue-300', text: 'text-blue-700', badge: 'bg-blue-600' },
+        fixa: { bg: 'bg-slate-50', border: 'border-slate-300', text: 'text-slate-700', badge: 'bg-slate-600' }
+    }
+    const config = prioridadeConfig[recomendacao.prioridade]
+
+    return (
+        <div className={`${config.bg} border-2 ${config.border} border-dashed rounded-2xl p-5 space-y-3`}>
+            <div className="flex items-center justify-between">
+                <h4 className="text-sm font-extrabold text-slate-800 uppercase tracking-wide flex items-center gap-2">
+                    <BrainCircuit className="h-5 w-5 text-indigo-600" />
+                    Recomendação da IA
+                </h4>
+                <span className={`${config.badge} text-white text-[10px] font-bold uppercase px-2 py-1 rounded-full`}>
+                    {recomendacao.prioridade}
+                </span>
+            </div>
+            <div className="space-y-2">
+                <div className="flex items-center gap-3">
+                    <div className="bg-white p-2 rounded-lg shadow-sm">
+                        <Users className="h-5 w-5 text-indigo-600" />
+                    </div>
+                    <div>
+                        <p className="text-xs text-slate-500 font-medium">Staff Sugerido</p>
+                        <p className="text-2xl font-black text-slate-900">{recomendacao.agentes}</p>
+                    </div>
+                </div>
+                <div className={`${config.text} text-xs font-medium leading-relaxed bg-white/60 p-3 rounded-lg flex items-start gap-2`}>
+                    <Info className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+                    <span>{recomendacao.motivo}</span>
+                </div>
+            </div>
+        </div>
+    )
+}
 
 export default function DashboardAdministrativaPage() {
     const [data, setData] = useState<Atendimento[]>([])
     const [monitorData, setMonitorData] = useState<MonitorAtendente[]>([])
     const [activeAlerts, setActiveAlerts] = useState<AlertaSistema[]>([])
 
-    // States de IA/Previsão
+    // States de IA/PrevisÃ£o
     const [predictionData, setPredictionData] = useState<AnaliseIA | null>(null)
     const [weeklyPrediction, setWeeklyPrediction] = useState<AnaliseIA | null>(null)
     const [showPredictionModal, setShowPredictionModal] = useState(false)
 
-    // States de Gamificação
+    // States de GamificaÃ§Ã£o
     const [showGamingModal, setShowGamingModal] = useState(false)
     const [rankingData, setRankingData] = useState<JogadorRanking[]>([])
     const [rankingLoading, setRankingLoading] = useState(false)
@@ -127,15 +201,16 @@ export default function DashboardAdministrativaPage() {
     const [loading, setLoading] = useState(true)
 
     const [dateFilter, setDateFilter] = useState(new Date().toISOString().split("T")[0])
-    const [viewMode, setViewMode] = useState<"Diário" | "Mensal">("Diário")
+    const [viewMode, setViewMode] = useState<"DiÃ¡rio" | "Mensal">("DiÃ¡rio")
 
     const [showModal, setShowModal] = useState(false)
-    const [showClientModal, setShowClientModal] = useState(false) // ⭐ Modal Clientes
-    const [clientSearchTerm, setClientSearchTerm] = useState("") // 🔍 Busca no modal de clientes
+    const [showClientModal, setShowClientModal] = useState(false)
+    const [clientSearchTerm, setClientSearchTerm] = useState("")
     const [showAlertsPanel, setShowAlertsPanel] = useState(false)
     const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null)
     const [searchTerm, setSearchTerm] = useState("")
     const [currentPage, setCurrentPage] = useState(1)
+    const [transferenciasData, setTransferenciasData] = useState<TransferenciaLog[]>([])
     const itemsPerPage = 7
 
     const calculateDuration = (startStr: string, endStr?: string | null) => {
@@ -143,7 +218,7 @@ export default function DashboardAdministrativaPage() {
         return Math.floor((end.getTime() - start.getTime()) / 60000);
     }
 
-    const fetchAlerts = async () => {
+    const fetchAlerts = useCallback(async () => {
         try {
             const duasHorasAtras = new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString();
             const { data, error } = await supabase
@@ -151,10 +226,10 @@ export default function DashboardAdministrativaPage() {
                 .gte('timestamp', duasHorasAtras).order('timestamp', { ascending: false });
             if (!error && data) setActiveAlerts(data as AlertaSistema[]);
         } catch (e) { console.error("Erro alertas:", e); }
-    }
+    }, [])
 
-    // ✅ MONITORAMENTO DIRETO DO SUPABASE (v0.dev não acessa localhost)
-    const fetchMonitor = async () => {
+    // âœ… MONITORAMENTO DIRETO DO SUPABASE (v0.dev nÃ£o acessa localhost)
+    const fetchMonitor = useCallback(async () => {
         try {
             const { data: monitorDb, error } = await supabase
                 .from('monitor_atendentes')
@@ -173,20 +248,20 @@ export default function DashboardAdministrativaPage() {
                     .map((m: any) => ({
                         id_atendente: m.id_atendente,
                         last_seen: m.last_seen,
-                        online: m.online, // ✅ USA VALOR DIRETO DO BANCO (classe CSS do elemento)
+                        online: m.online, // âœ… USA VALOR DIRETO DO BANCO (classe CSS do elemento)
                         chats_snapshot: m.chats_snapshot || []
                     }));
 
-                console.log(`🔄 Monitor atualizado: ${processedMonitor.length} atendentes, ${processedMonitor.filter(a => a.online).length} online`);
+                console.log(`ðŸ”„ Monitor atualizado: ${processedMonitor.length} atendentes, ${processedMonitor.filter(a => a.online).length} online`);
                 setMonitorData(processedMonitor);
             }
         } catch (e) {
-            console.error("❌ Erro ao buscar monitor do Supabase:", e);
+            console.error("âŒ Erro ao buscar monitor do Supabase:", e);
         }
-    }
+    }, [])
 
-    // ✅ IA PREDICT - BUSCA DIRETO DO SUPABASE (Compatível com Vercel)
-    const fetchPrediction = async (tipo: 'horario' | 'semanal') => {
+    // âœ… IA PREDICT - BUSCA DIRETO DO SUPABASE (CompatÃ­vel com Vercel)
+    const fetchPrediction = useCallback(async (tipo: 'horario' | 'semanal') => {
         try {
             const dataHoje = getDataBrasil();
             const { data: supData, error } = await supabase
@@ -205,21 +280,21 @@ export default function DashboardAdministrativaPage() {
                 } else {
                     setWeeklyPrediction(supData[0].payload);
                 }
-                console.log(`✅ Previsão ${tipo} carregada do Supabase`);
+                console.log(`âœ… PrevisÃ£o ${tipo} carregada do Supabase`);
             } else {
-                console.warn(`⚠️ Nenhuma previsão ${tipo} disponível no Supabase para ${dataHoje}`);
+                console.warn(`âš ï¸ Nenhuma previsÃ£o ${tipo} disponÃ­vel no Supabase para ${dataHoje}`);
             }
         } catch (e) {
-            console.error(`❌ Erro ao buscar previsão ${tipo} do Supabase:`, e);
+            console.error(`âŒ Erro ao buscar previsÃ£o ${tipo} do Supabase:`, e);
         }
-    }
+    }, [])
 
-    // ✅ GAMIFICAÇÃO - BUSCA DIRETO DO SUPABASE
-    const fetchRanking = async (forceUpdate = false) => {
+    // âœ… GAMIFICAÃ‡ÃƒO - BUSCA DIRETO DO SUPABASE
+    const fetchRanking = useCallback(async (forceUpdate = false) => {
         if (!ENABLE_GAMIFICATION) return;
         setRankingLoading(true);
         try {
-            const periodoSupabase = viewMode === 'Diário' ? 'hoje' : 'mes';
+            const periodoSupabase = viewMode === 'DiÃ¡rio' ? 'hoje' : 'mes';
             const dataHoje = getDataBrasil();
 
             const { data: supData, error } = await supabase
@@ -240,17 +315,17 @@ export default function DashboardAdministrativaPage() {
                     conquistas: typeof r.conquistas === 'string' ? JSON.parse(r.conquistas) : (Array.isArray(r.conquistas) ? r.conquistas : []),
                     avatar_initials: r.agente_id.substring(0, 2).toUpperCase()
                 })));
-                console.log(`✅ Ranking ${periodoSupabase} carregado (${supData.length} agentes)`);
+                console.log(`âœ… Ranking ${periodoSupabase} carregado (${supData.length} agentes)`);
             }
         } catch (e) {
-            console.error("❌ Erro ao buscar ranking do Supabase:", e);
+            console.error("âŒ Erro ao buscar ranking do Supabase:", e);
         } finally {
             setRankingLoading(false);
         }
-    }
+    }, [viewMode])
 
-    // ✅ TRANSFERÊNCIAS - BUSCA LOGS DO DIA
-    const fetchTransferencias = async () => {
+    // âœ… TRANSFERÃŠNCIAS - BUSCA LOGS DO DIA
+    const fetchTransferencias = useCallback(async () => {
         try {
             const dataHoje = getDataBrasil();
 
@@ -266,20 +341,20 @@ export default function DashboardAdministrativaPage() {
 
             if (data) {
                 setTransferenciasData(data as TransferenciaLog[]);
-                console.log(`✅ Transferências carregadas (${data.length} registros)`);
+                console.log(`âœ… TransferÃªncias carregadas (${data.length} registros)`);
             }
         } catch (e) {
-            console.error("❌ Erro ao buscar transferências:", e);
+            console.error("âŒ Erro ao buscar transferÃªncias:", e);
         }
-    }
+    }, [])
 
 
     // Busca dados de chamados (Mantido Supabase para tickets, pois o prompt foca em Monitor/IA)
-    const fetchData = async () => {
+    const fetchData = useCallback(async () => {
         try {
             setLoading(true)
             let query = supabase.from("atendimentos").select("*").order("created_at", { ascending: false })
-            if (viewMode === "Diário") query = query.gte("created_at", `${dateFilter}T00:00:00`).lte("created_at", `${dateFilter}T23:59:59`)
+            if (viewMode === "DiÃ¡rio") query = query.gte("created_at", `${dateFilter}T00:00:00`).lte("created_at", `${dateFilter}T23:59:59`)
             else {
                 const [year, month] = dateFilter.split("-")
                 const startDate = `${year}-${month}-01T00:00:00`
@@ -290,13 +365,13 @@ export default function DashboardAdministrativaPage() {
             const { data: dbData } = await query
             if (dbData) {
                 const processedData = dbData
-                    // ✅ CORREÇÃO: Removido filtro que bloqueava atendimentos ativos
+                    // âœ… CORREÃ‡ÃƒO: Removido filtro que bloqueava atendimentos ativos
                     // Agora atendimentos com origem='ativo' E origem='receptivo' aparecem no dashboard
                     .map((item) => {
                         let statusVisual: Atendimento["status_visual"] = "Em andamento"
                         const s = item.status?.toLowerCase() || ""
                         if (s.includes("transferido")) statusVisual = "Transferido"
-                        else if (s.includes("sem sucesso") || s.includes("falha") || s.includes("não")) statusVisual = "Falha"
+                        else if (s.includes("sem sucesso") || s.includes("falha") || s.includes("nÃ£o")) statusVisual = "Falha"
                         else if (s.includes("sucesso") || s.includes("resolvido")) statusVisual = "Sucesso"
                         return {
                             ...item,
@@ -304,17 +379,18 @@ export default function DashboardAdministrativaPage() {
                             duration_minutes: calculateDuration(item.created_at, statusVisual === "Em andamento" ? undefined : (item.updated_at || new Date().toISOString()))
                         }
                     })
+
                 setData(processedData as Atendimento[])
             }
 
-            // Se for hoje e diário, atualiza monitor
+            // Se for hoje e diÃ¡rio, atualiza monitor
             const hoje = new Date().toISOString().split("T")[0]
-            if (dateFilter === hoje && viewMode === "Diário") {
+            if (dateFilter === hoje && viewMode === "DiÃ¡rio") {
                 await fetchMonitor();
             }
 
         } catch (error) { console.error("Erro dados:", error) } finally { setLoading(false) }
-    }
+    }, [viewMode, dateFilter])
 
     useEffect(() => {
         fetchData()
@@ -323,26 +399,28 @@ export default function DashboardAdministrativaPage() {
         fetchRanking()
         const clockInterval = setInterval(() => setCurrentTime(new Date()), 1000)
         const hoje = new Date().toISOString().split("T")[0]
-        const isLive = dateFilter === hoje && viewMode === "Diário"
-        let dataInterval: NodeJS.Timeout | null = null
-        let alertsInterval: NodeJS.Timeout | null = null
-        let rankingInterval: NodeJS.Timeout | null = null
+        const isLive = dateFilter === hoje && viewMode === "DiÃ¡rio"
+        let ticketsInterval: ReturnType<typeof setInterval> | null = null
+        let monitorInterval: ReturnType<typeof setInterval> | null = null
+        let alertsInterval: ReturnType<typeof setInterval> | null = null
+        let rankingInterval: ReturnType<typeof setInterval> | null = null
 
         if (isLive) {
-            // Sincroniza monitor e tickets
-            dataInterval = setInterval(() => {
-                fetchData(); // Chama tickets e monitor internamente
-            }, 5000)
+            // Monitor: 10s (crÃ­tico para status ao vivo)
+            monitorInterval = setInterval(() => fetchMonitor(), 10000)
+            // Tickets: 30s (menos volÃ¡til que o monitor)
+            ticketsInterval = setInterval(() => fetchData(), 30000)
             alertsInterval = setInterval(() => { fetchAlerts(); fetchPrediction('horario'); }, 60000)
             rankingInterval = setInterval(() => fetchRanking(), 300000)
         }
         return () => {
             clearInterval(clockInterval);
-            if (dataInterval) clearInterval(dataInterval);
+            if (ticketsInterval) clearInterval(ticketsInterval);
+            if (monitorInterval) clearInterval(monitorInterval);
             if (alertsInterval) clearInterval(alertsInterval)
             if (rankingInterval) clearInterval(rankingInterval)
         }
-    }, [dateFilter, viewMode])
+    }, [dateFilter, viewMode, fetchData, fetchAlerts, fetchPrediction, fetchRanking, fetchMonitor])
 
     useEffect(() => { setCurrentPage(1) }, [selectedAgentId, searchTerm])
 
@@ -350,7 +428,7 @@ export default function DashboardAdministrativaPage() {
         if (showPredictionModal && !weeklyPrediction) {
             fetchPrediction('semanal');
         }
-    }, [showPredictionModal]);
+    }, [showPredictionModal, weeklyPrediction, fetchPrediction]);
 
     // Ajustado para estrutura do chats_snapshot vindo da API
     const getUnreadMessages = (ticketTelefone: string, atendenteNome: string) => {
@@ -381,7 +459,7 @@ export default function DashboardAdministrativaPage() {
     const avgResolutionTime = completedToday.length > 0 ? Math.round(completedToday.reduce((acc, t) => acc + t.duration_minutes, 0) / completedToday.length) : 0
 
     const volumeChartData = useMemo(() => {
-        if (viewMode === "Diário") {
+        if (viewMode === "DiÃ¡rio") {
             const START_HOUR = 8; const END_HOUR = 18;
             const chartData = Array.from({ length: END_HOUR - START_HOUR + 1 }, (_, i) => {
                 const hour = START_HOUR + i
@@ -448,7 +526,7 @@ export default function DashboardAdministrativaPage() {
 
     const motivesData = useMemo(() => {
         const counts: Record<string, number> = {}
-        data.forEach(d => { const motivo = d.motivo || "Não Informado"; counts[motivo] = (counts[motivo] || 0) + 1 })
+        data.forEach(d => { const motivo = d.motivo || "NÃ£o Informado"; counts[motivo] = (counts[motivo] || 0) + 1 })
         return Object.entries(counts).map(([name, value], index) => ({ name, value, color: MOTIVE_COLORS[index % MOTIVE_COLORS.length] })).sort((a, b) => b.value - a.value)
     }, [data])
 
@@ -461,7 +539,7 @@ export default function DashboardAdministrativaPage() {
         const wrCompleted = filteredData.filter(d => d.status_visual !== "Em andamento")
         const wrTma = wrCompleted.length > 0 ? Math.round(wrCompleted.reduce((acc, t) => acc + t.duration_minutes, 0) / wrCompleted.length) : 0
         let wrChart = []
-        if (viewMode === "Diário") {
+        if (viewMode === "DiÃ¡rio") {
             const START_HOUR = 8; const END_HOUR = 18
             wrChart = Array.from({ length: END_HOUR - START_HOUR + 1 }, (_, i) => { const hour = START_HOUR + i; return { label: `${hour}:00`, count: 0, sortKey: hour, efficiency: 0, successCount: 0 } })
             filteredData.forEach(t => {
@@ -472,7 +550,7 @@ export default function DashboardAdministrativaPage() {
                     if (t.status_visual === "Sucesso") bucket.successCount++;
                 }
             })
-            // Calcula eficiência
+            // Calcula eficiÃªncia
             wrChart.forEach(b => {
                 b.efficiency = b.count > 0 ? Math.round((b.successCount / b.count) * 100) : 0;
             });
@@ -487,7 +565,7 @@ export default function DashboardAdministrativaPage() {
                     if (t.status_visual === "Sucesso") bucket.successCount++;
                 }
             })
-            // Calcula eficiência
+            // Calcula eficiÃªncia
             wrChart.forEach(b => {
                 b.efficiency = b.count > 0 ? Math.round((b.successCount / b.count) * 100) : 0;
             });
@@ -496,7 +574,7 @@ export default function DashboardAdministrativaPage() {
         filteredData.forEach(d => { const m = d.motivo || "Sem motivo"; wrMotivesCount[m] = (wrMotivesCount[m] || 0) + 1 })
         const wrMotives = Object.entries(wrMotivesCount).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 5)
 
-        // ✅ TOP CLIENTES
+        // âœ… TOP CLIENTES
         const clientsMap = new Map<string, { name: string, count: number, lastSeen: string }>();
         filteredData.forEach(d => {
             const key = d.telefone || d.nome_cliente || "Desconhecido";
@@ -517,7 +595,7 @@ export default function DashboardAdministrativaPage() {
         return { list: paginatedList, fullListLength: searchFiltered.length, totalPages, total: wrTotal, successRate: wrRate, tma: wrTma, chart: wrChart, motives: wrMotives, topClients }
     }, [data, selectedAgentId, searchTerm, currentPage, viewMode, dateFilter])
 
-    // 🧠 MAPA DE CLIENTES (Agregação Local Melhorada)
+    // ðŸ§  MAPA DE CLIENTES (AgregaÃ§Ã£o Local Melhorada)
     const clientMapData = useMemo(() => {
         const map = new Map<string, {
             nome: string,
@@ -549,12 +627,12 @@ export default function DashboardAdministrativaPage() {
             const c = map.get(key)!;
             c.total++;
 
-            // 🧠 Lógica de Nome Inteligente: Prefere nomes reais e longos
+            // ðŸ§  LÃ³gica de Nome Inteligente: Prefere nomes reais e longos
             const nomeAtual = d.nome_cliente;
-            const nomeEhValido = nomeAtual && nomeAtual.length > 2 && !["Cliente", "Usuário", "Desconhecido"].includes(nomeAtual);
+            const nomeEhValido = nomeAtual && nomeAtual.length > 2 && !["Cliente", "UsuÃ¡rio", "Desconhecido"].includes(nomeAtual);
 
             if (nomeEhValido) {
-                if (c.nome === "Cliente") c.nome = nomeAtual; // Sai do genérico
+                if (c.nome === "Cliente") c.nome = nomeAtual; // Sai do genÃ©rico
                 else if (nomeAtual!.length > c.nome.length) c.nome = nomeAtual!; // Prefere o mais completo
             }
 
@@ -582,7 +660,7 @@ export default function DashboardAdministrativaPage() {
             }
         });
 
-        // 🔍 Aplicar filtro de busca
+        // ðŸ” Aplicar filtro de busca
         const filtered = lista.filter(c =>
             c.nome.toLowerCase().includes(clientSearchTerm.toLowerCase()) ||
             c.telefone.includes(clientSearchTerm)
@@ -600,20 +678,20 @@ export default function DashboardAdministrativaPage() {
         };
     }, [data, clientSearchTerm]);
 
-    const isToday = dateFilter === new Date().toISOString().split("T")[0] && viewMode === "Diário"
+    const isToday = dateFilter === new Date().toISOString().split("T")[0] && viewMode === "DiÃ¡rio"
 
     return (
         <div className="min-h-screen bg-slate-50/50 p-4 lg:p-6 font-sans text-slate-900 relative">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
                 <div>
-                    <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Monitor de Operações</h1>
+                    <h1 className="text-3xl font-bold text-slate-900 tracking-tight">Monitor de OperaÃ§Ãµes</h1>
                     <div className="flex items-center gap-2 mt-1">
                         {isToday ? (
                             <>
                                 <span className="relative flex h-2.5 w-2.5"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span><span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span></span>
-                                <p className="text-sm text-slate-500 font-medium">Ao Vivo • Heartbeat Ativo</p>
+                                <p className="text-sm text-slate-500 font-medium">Ao Vivo â€¢ Heartbeat Ativo</p>
                             </>
-                        ) : (<><span className="relative flex h-2.5 w-2.5"><span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-slate-400"></span></span><p className="text-sm text-slate-500 font-medium">Histórico • {viewMode} • {viewMode === "Mensal" ? "Evolução do Mês" : "Arquivo do Dia"}</p></>)}
+                        ) : (<><span className="relative flex h-2.5 w-2.5"><span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-slate-400"></span></span><p className="text-sm text-slate-500 font-medium">HistÃ³rico â€¢ {viewMode} â€¢ {viewMode === "Mensal" ? "EvoluÃ§Ã£o do MÃªs" : "Arquivo do Dia"}</p></>)}
                     </div>
                 </div>
                 <div className="flex flex-col sm:flex-row gap-3 items-end sm:items-center">
@@ -627,9 +705,9 @@ export default function DashboardAdministrativaPage() {
                         <Users className="h-4 w-4 group-hover:scale-110 transition-transform" />
                         <span className="hidden md:inline">Clientes</span>
                     </button>
-                    <button onClick={() => { fetchPrediction('semanal'); setShowPredictionModal(true); }} className="bg-purple-600 hover:bg-purple-700 text-white p-2.5 rounded-xl shadow-sm transition-all flex items-center gap-2 font-bold text-xs uppercase tracking-wide" title="Ver Previsão"><Sparkles className="h-4 w-4" /><span className="hidden md:inline">IA Predict</span></button>
+                    <button onClick={() => { fetchPrediction('semanal'); setShowPredictionModal(true); }} className="bg-indigo-600 hover:bg-indigo-700 text-white p-2.5 rounded-xl shadow-sm transition-all flex items-center gap-2 font-bold text-xs uppercase tracking-wide" title="Ver PrevisÃ£o"><Sparkles className="h-4 w-4" /><span className="hidden md:inline">IA Predict</span></button>
                     <div className="relative">
-                        <button onClick={() => setShowAlertsPanel(!showAlertsPanel)} className={`relative p-2.5 rounded-xl border transition-all ${activeAlerts.length > 0 ? 'bg-white border-red-200 text-red-600 hover:bg-red-50 shadow-sm' : 'bg-white border-slate-200 text-slate-400 hover:text-slate-600 shadow-sm'}`}>
+                        <button aria-label="Ver alertas do sistema" onClick={() => setShowAlertsPanel(!showAlertsPanel)} className={`relative p-2.5 rounded-xl border transition-all ${activeAlerts.length > 0 ? 'bg-white border-red-200 text-red-600 hover:bg-red-50 shadow-sm' : 'bg-white border-slate-200 text-slate-400 hover:text-slate-600 shadow-sm'}`}>
                             <Bell className={`h-5 w-5 ${activeAlerts.length > 0 ? 'animate-pulse' : ''}`} />
                             {activeAlerts.length > 0 && <span className="absolute -top-1.5 -right-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white border-2 border-slate-50">{activeAlerts.length}</span>}
                         </button>
@@ -641,7 +719,7 @@ export default function DashboardAdministrativaPage() {
                                 </div>
                                 <div className="max-h-[300px] overflow-y-auto p-2 space-y-2">
                                     {activeAlerts.length === 0 ? (
-                                        <div className="p-6 text-center text-slate-400 flex flex-col items-center"><CheckCircle2 className="h-8 w-8 mb-2 opacity-20" /><p className="text-xs">Nenhum alerta ativo. Operação normal.</p></div>
+                                        <div className="p-6 text-center text-slate-400 flex flex-col items-center"><CheckCircle2 className="h-8 w-8 mb-2 opacity-20" /><p className="text-xs">Nenhum alerta ativo. OperaÃ§Ã£o normal.</p></div>
                                     ) : (
                                         activeAlerts.map((alert) => (
                                             <div key={alert.id} className={`p-3 rounded-lg border text-left ${alert.tipo === 'CRITICO' ? 'bg-red-50 border-red-100' : alert.tipo === 'URGENTE' ? 'bg-amber-50 border-amber-100' : 'bg-blue-50 border-blue-100'}`}>
@@ -658,16 +736,16 @@ export default function DashboardAdministrativaPage() {
                             </div>
                         )}
                     </div>
-                    {/* Controles de Data... (Mantido layout padrão) */}
+                    {/* Controles de Data... (Mantido layout padrÃ£o) */}
                     <div className="flex items-center bg-white p-1 rounded-lg border border-slate-200 shadow-sm">
-                        <button onClick={() => setViewMode("Diário")} className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${viewMode === "Diário" ? "bg-blue-50 text-blue-700 shadow-sm" : "text-slate-500 hover:bg-slate-50"}`}>Dia</button>
-                        <button onClick={() => setViewMode("Mensal")} className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${viewMode === "Mensal" ? "bg-blue-50 text-blue-700 shadow-sm" : "text-slate-500 hover:bg-slate-50"}`}>Mês</button>
+                        <button onClick={() => setViewMode("DiÃ¡rio")} className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${viewMode === "DiÃ¡rio" ? "bg-blue-50 text-blue-700 shadow-sm" : "text-slate-500 hover:bg-slate-50"}`}>Dia</button>
+                        <button onClick={() => setViewMode("Mensal")} className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${viewMode === "Mensal" ? "bg-blue-50 text-blue-700 shadow-sm" : "text-slate-500 hover:bg-slate-50"}`}>MÃªs</button>
                     </div>
                     <div className="flex items-center gap-2 bg-white p-2 rounded-xl border border-slate-200 shadow-sm">
-                        {viewMode === "Diário" ? <CalendarDays className="h-4 w-4 text-slate-400 ml-1" /> : <Calendar className="h-4 w-4 text-slate-400 ml-1" />}
+                        {viewMode === "DiÃ¡rio" ? <CalendarDays className="h-4 w-4 text-slate-400 ml-1" /> : <Calendar className="h-4 w-4 text-slate-400 ml-1" />}
                         <input type="date" value={dateFilter} onChange={(e) => setDateFilter(e.target.value)} className="text-sm font-medium text-slate-700 outline-none bg-transparent cursor-pointer" />
                     </div>
-                    {!isToday && (<button onClick={() => { setDateFilter(new Date().toISOString().split("T")[0]); setViewMode("Diário") }} className="flex items-center gap-1 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm transition-colors"><RotateCcw className="h-3 w-3" /> Hoje</button>)}
+                    {!isToday && (<button onClick={() => { setDateFilter(new Date().toISOString().split("T")[0]); setViewMode("DiÃ¡rio") }} className="flex items-center gap-1 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-sm transition-colors"><RotateCcw className="h-3 w-3" /> Hoje</button>)}
                     <div className="hidden md:block text-right ml-2"><div className="text-xl font-mono font-bold text-slate-800">{currentTime.toLocaleTimeString("pt-BR", { hour: '2-digit', minute: '2-digit' })}</div></div>
                 </div>
             </div>
@@ -677,10 +755,10 @@ export default function DashboardAdministrativaPage() {
                     <div className="flex justify-between items-center mb-3">
                         <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-2"><Wifi className="h-4 w-4" /> Radar de Equipe (Tempo Real)</h3>
                         {predictionData && predictionData.recomendacao && (
-                            <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold border ${predictionData.recomendacao.prioridade === 'alta' ? 'bg-red-100 text-red-700 border-red-200 animate-pulse' : predictionData.recomendacao.prioridade === 'fixa' ? 'bg-blue-100 text-blue-700 border-blue-200' : predictionData.recomendacao.prioridade === 'média' ? 'bg-amber-100 text-amber-700 border-amber-200' : 'bg-emerald-100 text-emerald-700 border-emerald-200'}`}>
+                            <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold border ${predictionData.recomendacao.prioridade === 'alta' ? 'bg-red-100 text-red-700 border-red-200 animate-pulse' : predictionData.recomendacao.prioridade === 'fixa' ? 'bg-blue-100 text-blue-700 border-blue-200' : predictionData.recomendacao.prioridade === 'mÃ©dia' ? 'bg-amber-100 text-amber-700 border-amber-200' : 'bg-emerald-100 text-emerald-700 border-emerald-200'}`}>
                                 <BrainCircuit className="h-3 w-3" />
                                 {predictionData.recomendacao.prioridade === 'fixa' ? predictionData.recomendacao.motivo : `Staff Sugerido: ${predictionData.recomendacao.agentes || 0} agentes`}
-                                {/* ✅ AVISO DE MOCK - Verificação segura */}
+                                {/* âœ… AVISO DE MOCK - VerificaÃ§Ã£o segura */}
                                 {(predictionData as any)?.mock && <span className="ml-2 text-[10px] opacity-70">(Simulado)</span>}
                             </div>
                         )}
@@ -697,7 +775,7 @@ export default function DashboardAdministrativaPage() {
                 </div>
             )}
 
-            {/* RESTO DO DASHBOARD - MANTIDO IGUAL (Cards, Tabelas, Gráficos) */}
+            {/* RESTO DO DASHBOARD - MANTIDO IGUAL (Cards, Tabelas, GrÃ¡ficos) */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
                 <div className="lg:col-span-3 space-y-6">
                     <Card className="border-slate-200 shadow-sm bg-white h-full">
@@ -721,15 +799,15 @@ export default function DashboardAdministrativaPage() {
                                     <CardHeader className="pb-2 border-b border-slate-100">
                                         <div className="flex justify-between items-center">
                                             <div className="flex items-center gap-2">
-                                                <TrendingUp className="h-5 w-5 text-purple-600" />
+                                                <TrendingUp className="h-5 w-5 text-indigo-600" />
                                                 <div>
                                                     <CardTitle className="text-sm font-bold text-slate-600 uppercase tracking-wider">
-                                                        Panorama do Mês
+                                                        Panorama do MÃªs
                                                     </CardTitle>
                                                     <p className="text-xs text-slate-400 font-normal">Clique na barra para ver detalhes do dia</p>
                                                 </div>
                                             </div>
-                                            <Badge variant="secondary" className="bg-purple-50 text-purple-700 hover:bg-purple-100 transition-colors">
+                                            <Badge variant="secondary" className="bg-indigo-50 text-indigo-700 hover:bg-indigo-100 transition-colors">
                                                 {new Date(dateFilter).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }).toUpperCase()}
                                             </Badge>
                                         </div>
@@ -744,7 +822,7 @@ export default function DashboardAdministrativaPage() {
                                                             const payload = data.activePayload[0].payload;
                                                             if (payload.fullDate) {
                                                                 setDateFilter(payload.fullDate);
-                                                                setViewMode("Diário");
+                                                                setViewMode("DiÃ¡rio");
                                                             }
                                                         }
                                                     }}
@@ -767,7 +845,7 @@ export default function DashboardAdministrativaPage() {
                                             <div className="flex items-center gap-2 p-2 rounded-lg hover:bg-slate-50 transition-colors"><div className="w-3 h-3 rounded-full bg-slate-400 shadow-sm shadow-slate-200"></div> Transferido</div>
                                             <div className="flex items-center gap-2 p-2 rounded-lg hover:bg-slate-50 transition-colors"><div className="w-3 h-3 rounded-full bg-red-500 shadow-sm shadow-red-200"></div> Falha</div>
                                         </div>
-                                        {/* Mini Insights do Mês */}
+                                        {/* Mini Insights do MÃªs */}
                                         <div className="grid grid-cols-3 gap-4 mt-6">
                                             {(() => {
                                                 const highestDay = [...volumeChartData].sort((a, b) => b.count - a.count)[0];
@@ -776,18 +854,18 @@ export default function DashboardAdministrativaPage() {
                                                 return (
                                                     <>
                                                         <div className="bg-slate-50 rounded-lg p-3 border border-slate-100 text-center">
-                                                            <p className="text-[10px] text-slate-400 uppercase font-bold mb-1">Pico do Mês</p>
+                                                            <p className="text-[10px] text-slate-400 uppercase font-bold mb-1">Pico do MÃªs</p>
                                                             <p className="text-lg font-bold text-slate-800">{highestDay ? highestDay.label : '-'}</p>
                                                             <p className="text-[10px] text-slate-500">{highestDay?.count || 0} chats</p>
                                                         </div>
                                                         <div className="bg-slate-50 rounded-lg p-3 border border-slate-100 text-center">
-                                                            <p className="text-[10px] text-slate-400 uppercase font-bold mb-1">Média Diária</p>
+                                                            <p className="text-[10px] text-slate-400 uppercase font-bold mb-1">MÃ©dia DiÃ¡ria</p>
                                                             <p className="text-lg font-bold text-slate-800">{Math.round(avgDaily)}</p>
                                                             <p className="text-[10px] text-slate-500">chats/dia</p>
                                                         </div>
                                                         <div className="bg-slate-50 rounded-lg p-3 border border-slate-100 text-center">
-                                                            <p className="text-[10px] text-slate-400 uppercase font-bold mb-1">Total Mês</p>
-                                                            <p className="text-lg font-bold text-purple-600">{totalMonth}</p>
+                                                            <p className="text-[10px] text-slate-400 uppercase font-bold mb-1">Total MÃªs</p>
+                                                            <p className="text-lg font-bold text-indigo-600">{totalMonth}</p>
                                                         </div>
                                                     </>
                                                 )
@@ -797,7 +875,7 @@ export default function DashboardAdministrativaPage() {
                                 </Card>
                             ) : (
                                 <>
-                                    <div className="flex items-center justify-between"><h2 className="text-lg font-bold text-slate-800 flex items-center gap-2"><Activity className="h-5 w-5 text-blue-500" /> Sala de Operações</h2>{isToday && activeTickets.length > 0 && <Badge variant="secondary" className="bg-blue-100 text-blue-700">Ao Vivo</Badge>}</div>
+                                    <div className="flex items-center justify-between"><h2 className="text-lg font-bold text-slate-800 flex items-center gap-2"><Activity className="h-5 w-5 text-blue-500" /> Sala de OperaÃ§Ãµes</h2>{isToday && activeTickets.length > 0 && <Badge variant="secondary" className="bg-blue-100 text-blue-700">Ao Vivo</Badge>}</div>
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[500px] overflow-y-auto pr-2">
                                         {(isToday ? activeTickets : data.slice(0, 20)).map((ticket) => {
                                             const isFinished = ticket.status_visual !== "Em andamento"
@@ -805,9 +883,9 @@ export default function DashboardAdministrativaPage() {
                                             const agentOnline = isToday && !isFinished ? isAgentOnline(ticket.id_atendente) : true
                                             const isAbandonRisk = unreadCount > 4 || (unreadCount > 0 && !agentOnline)
                                             let cardClass = "bg-white border-slate-200"; if (isAbandonRisk && isToday) cardClass = "bg-red-50 border-red-300 shadow-md ring-1 ring-red-200 animate-pulse"; else if (unreadCount > 0 && isToday) cardClass = "bg-amber-50 border-amber-200"
-                                            return (<Card key={ticket.id} className={`transition-all duration-300 ${cardClass} shadow-sm relative overflow-hidden`}>{isAbandonRisk && <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-red-500"></div>}<CardContent className="p-5"><div className="flex justify-between items-start mb-4"><div className="flex items-center gap-2 text-slate-500 text-xs font-bold uppercase tracking-wide"><User className="h-3 w-3" />{ticket.id_atendente || "Desconhecido"}{isToday && !isFinished && (<span className={`w-2 h-2 rounded-full ${agentOnline ? 'bg-emerald-500' : 'bg-red-400'}`} title={agentOnline ? "Online" : "Offline/Ausente"}></span>)}</div>{unreadCount > 0 && (<Badge className="bg-red-500 text-white hover:bg-red-600 border-0 flex gap-1 animate-bounce"><MessageCircle className="h-3 w-3" /> {unreadCount}</Badge>)}{unreadCount === 0 && (<Badge variant="outline" className="bg-slate-100 text-slate-600 border-0">{ticket.duration_minutes} min</Badge>)}</div><div><p className="text-xs text-slate-400 mb-1">Cliente</p><h3 className="text-lg font-bold text-slate-900 truncate" title={ticket.nome_cliente}>{ticket.nome_cliente || "Sem nome"}</h3><p className="text-xs text-slate-400 truncate mt-1">{ticket.telefone || "-"}</p><div className="flex gap-2 mt-2 flex-wrap">{ticket.origem === 'receptivo' ? (<Badge className="bg-green-100 text-green-700 border border-green-200 text-[10px] font-bold flex items-center gap-1"><Phone className="h-3 w-3" /> RECEPTIVO</Badge>) : ticket.origem === 'ativo' ? (<Badge className="bg-blue-100 text-blue-700 border border-blue-200 text-[10px] font-bold flex items-center gap-1"><ArrowUpRight className="h-3 w-3" /> ATIVO</Badge>) : null}{ticket.motivo && (<Badge variant="secondary" className="text-[10px] bg-slate-100 text-slate-600 font-normal">🏷️ {ticket.motivo}</Badge>)}</div></div>{isAbandonRisk && (<div className="mt-2 text-xs font-bold text-red-600 flex items-center gap-1"><AlertTriangle className="h-3 w-3" /> RISCO DE ABANDONO</div>)}<div className="mt-4 pt-3 border-t border-slate-200/50 flex justify-between items-center"><span className="text-xs text-slate-400">{new Date(ticket.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>{isFinished ? (<Badge variant="outline" className="text-xs">{ticket.status_visual}</Badge>) : (<div className="flex items-center gap-1.5"><span className="relative flex h-2 w-2"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span><span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span></span><span className="text-xs font-medium text-blue-600">Em Andamento</span></div>)}</div></CardContent></Card>)
+                                            return (<Card key={ticket.id} className={`transition-all duration-300 ${cardClass} shadow-sm relative overflow-hidden`}>{isAbandonRisk && <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-red-500"></div>}<CardContent className="p-5"><div className="flex justify-between items-start mb-4"><div className="flex items-center gap-2 text-slate-500 text-xs font-bold uppercase tracking-wide"><User className="h-3 w-3" />{ticket.id_atendente || "Desconhecido"}{isToday && !isFinished && (<span className={`w-2 h-2 rounded-full ${agentOnline ? 'bg-emerald-500' : 'bg-red-400'}`} title={agentOnline ? "Online" : "Offline/Ausente"}></span>)}</div>{unreadCount > 0 && (<Badge className="bg-red-500 text-white hover:bg-red-600 border-0 flex gap-1 animate-bounce"><MessageCircle className="h-3 w-3" /> {unreadCount}</Badge>)}{unreadCount === 0 && (<Badge variant="outline" className="bg-slate-100 text-slate-600 border-0">{ticket.duration_minutes} min</Badge>)}</div><div><p className="text-xs text-slate-400 mb-1">Cliente</p><h3 className="text-lg font-bold text-slate-900 truncate" title={ticket.nome_cliente}>{ticket.nome_cliente || "Sem nome"}</h3><p className="text-xs text-slate-400 truncate mt-1">{ticket.telefone || "-"}</p><div className="flex gap-2 mt-2 flex-wrap">{ticket.origem === 'receptivo' ? (<Badge className="bg-green-100 text-green-700 border border-green-200 text-[10px] font-bold flex items-center gap-1"><Phone className="h-3 w-3" /> RECEPTIVO</Badge>) : ticket.origem === 'ativo' ? (<Badge className="bg-blue-100 text-blue-700 border border-blue-200 text-[10px] font-bold flex items-center gap-1"><ArrowUpRight className="h-3 w-3" /> ATIVO</Badge>) : null}{ticket.motivo && (<Badge variant="secondary" className="text-[10px] bg-slate-100 text-slate-600 font-normal">ðŸ·ï¸ {ticket.motivo}</Badge>)}</div></div>{isAbandonRisk && (<div className="mt-2 text-xs font-bold text-red-600 flex items-center gap-1"><AlertTriangle className="h-3 w-3" /> RISCO DE ABANDONO</div>)}<div className="mt-4 pt-3 border-t border-slate-200/50 flex justify-between items-center"><span className="text-xs text-slate-400">{new Date(ticket.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>{isFinished ? (<Badge variant="outline" className="text-xs">{ticket.status_visual}</Badge>) : (<div className="flex items-center gap-1.5"><span className="relative flex h-2 w-2"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span><span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span></span><span className="text-xs font-medium text-blue-600">Em Andamento</span></div>)}</div></CardContent></Card>)
                                         })}
-                                        {activeTickets.length === 0 && !isToday && data.length === 0 && (<div className="col-span-1 md:col-span-2 flex flex-col items-center justify-center p-8 bg-slate-50 rounded-xl border border-dashed border-slate-300 text-slate-400"><Ghost className="h-8 w-8 mb-2 opacity-50" /><p className="text-sm font-medium">Nenhum chamado encontrado no período.</p></div>)}
+                                        {activeTickets.length === 0 && !isToday && data.length === 0 && (<div className="col-span-1 md:col-span-2 flex flex-col items-center justify-center p-8 bg-slate-50 rounded-xl border border-dashed border-slate-300 text-slate-400"><Ghost className="h-8 w-8 mb-2 opacity-50" /><p className="text-sm font-medium">Nenhum chamado encontrado no perÃ­odo.</p></div>)}
                                     </div>
                                 </>
                             )}
@@ -815,90 +893,16 @@ export default function DashboardAdministrativaPage() {
                     </div>
                 </div>
                 <div className="lg:col-span-3 space-y-6">
-                    {/* Gráficos laterais mantidos (Motivos + Volume) */}
+                    {/* GrÃ¡ficos laterais mantidos (Motivos + Volume) */}
                     <Card className="border-slate-200 shadow-sm bg-white overflow-hidden relative"><CardHeader className="pb-2 border-b border-slate-100 flex flex-row items-center justify-between"><CardTitle className="text-sm font-bold text-slate-500 uppercase tracking-wider">Motivos</CardTitle><button onClick={() => { setSelectedAgentId(null); setSearchTerm(""); setShowModal(true); }} className="text-xs bg-indigo-50 text-indigo-600 hover:bg-indigo-100 px-2 py-1 rounded transition-colors flex items-center gap-1 font-bold"><Search className="h-3 w-3" /> Ver Raio-X</button></CardHeader><CardContent className="p-4">{motivesData.length > 0 ? (<div className="h-[200px] w-full relative"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={motivesData} innerRadius={50} outerRadius={70} paddingAngle={2} dataKey="value">{motivesData.map((entry, index) => (<Cell key={`cell-${index}`} fill={entry.color} stroke="none" />))}</Pie><Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }} /></PieChart></ResponsiveContainer></div>) : <div className="h-[200px] flex items-center justify-center text-slate-400 text-xs">Sem dados</div>}<div className="mt-2 space-y-1 max-h-[100px] overflow-y-auto pr-1 custom-scrollbar">{motivesData.map((m) => (<div key={m.name} className="flex justify-between items-center text-xs"><div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full" style={{ backgroundColor: m.color }}></div><span className="text-slate-600 truncate max-w-[120px]" title={m.name}>{m.name}</span></div><span className="font-bold text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded">{m.value}</span></div>))}</div></CardContent></Card>
-                    <Card className="border-slate-200 shadow-sm bg-white"><CardHeader className="pb-2 border-b border-slate-100"><CardTitle className="text-sm font-bold text-slate-500 uppercase tracking-wider">{viewMode === "Diário" ? "Volume (Real vs Previsto)" : "Evolução Diária (Mês)"}</CardTitle></CardHeader><CardContent className="p-4"><div className="h-[150px] w-full"><ResponsiveContainer width="100%" height="100%">{viewMode === "Diário" ? (<ComposedChart data={volumeChartData}><defs><linearGradient id="colorReal" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor={COLORS.primary} stopOpacity={0.3} /><stop offset="95%" stopColor={COLORS.primary} stopOpacity={0} /></linearGradient></defs><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" /><XAxis dataKey="label" hide tick={{ fontSize: 10 }} /><Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} /><Area type="monotone" dataKey="real" stroke={COLORS.primary} fill="url(#colorReal)" strokeWidth={2} /><Line type="monotone" dataKey="previsto" stroke={COLORS.prediction} strokeDasharray="5 5" strokeWidth={2} dot={{ r: 2 }} /></ComposedChart>) : (<AreaChart data={volumeChartData}><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" /><XAxis dataKey="label" hide tick={{ fontSize: 10 }} interval={2} /><Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} /><Area type="monotone" dataKey="count" stroke={COLORS.primary} fill={COLORS.primary} fillOpacity={0.2} strokeWidth={2} /></AreaChart>)}</ResponsiveContainer></div></CardContent></Card>
+                    <Card className="border-slate-200 shadow-sm bg-white"><CardHeader className="pb-2 border-b border-slate-100"><CardTitle className="text-sm font-bold text-slate-500 uppercase tracking-wider">{viewMode === "DiÃ¡rio" ? "Volume (Real vs Previsto)" : "EvoluÃ§Ã£o DiÃ¡ria (MÃªs)"}</CardTitle></CardHeader><CardContent className="p-4"><div className="h-[150px] w-full"><ResponsiveContainer width="100%" height="100%">{viewMode === "DiÃ¡rio" ? (<ComposedChart data={volumeChartData}><defs><linearGradient id="colorReal" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor={COLORS.primary} stopOpacity={0.3} /><stop offset="95%" stopColor={COLORS.primary} stopOpacity={0} /></linearGradient></defs><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" /><XAxis dataKey="label" hide tick={{ fontSize: 10 }} /><Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} /><Area type="monotone" dataKey="real" stroke={COLORS.primary} fill="url(#colorReal)" strokeWidth={2} /><Line type="monotone" dataKey="previsto" stroke={COLORS.prediction} strokeDasharray="5 5" strokeWidth={2} dot={{ r: 2 }} /></ComposedChart>) : (<AreaChart data={volumeChartData}><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" /><XAxis dataKey="label" hide tick={{ fontSize: 10 }} interval={2} /><Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} /><Area type="monotone" dataKey="count" stroke={COLORS.primary} fill={COLORS.primary} fillOpacity={0.2} strokeWidth={2} /></AreaChart>)}</ResponsiveContainer></div></CardContent></Card>
                 </div>
             </div>
 
-            {/* MODAIS (RANKING, PREVISÃO, SALA DE GUERRA) - MANTIDOS IGUAIS */}
-            {/* 1. PREVISÃO SEMANAL */}
+            {/* MODAIS (RANKING, PREVISÃƒO, SALA DE GUERRA) - MANTIDOS IGUAIS */}
+            {/* 1. PREVISÃƒO SEMANAL */}
             {showPredictionModal && weeklyPrediction && (() => {
-                // 🎨 COMPONENTES AUXILIARES MODULARES
-                const MetricCard = ({
-                    icon: Icon,
-                    label,
-                    value,
-                    trend,
-                    iconColor
-                }: {
-                    icon: any,
-                    label: string,
-                    value: string,
-                    trend?: 'up' | 'down',
-                    iconColor: string
-                }) => (
-                    <div className="bg-gradient-to-br from-slate-50 to-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-all group">
-                        <div className="flex items-center justify-between mb-3">
-                            <div className={`p-3 rounded-xl ${iconColor} group-hover:scale-110 transition-transform`}>
-                                <Icon className="h-6 w-6" />
-                            </div>
-                            {trend && (
-                                <div className={`flex items-center gap-1 text-xs font-bold ${trend === 'up' ? 'text-emerald-600' : 'text-amber-600'}`}>
-                                    {trend === 'up' ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}
-                                </div>
-                            )}
-                        </div>
-                        <p className="text-xs text-slate-500 uppercase font-bold tracking-wide mb-1">{label}</p>
-                        <p className="text-2xl font-extrabold text-slate-900">{value}</p>
-                    </div>
-                )
-
-                const RecommendationPanel = ({
-                    recomendacao
-                }: {
-                    recomendacao?: { agentes: number, motivo: string, prioridade: 'alta' | 'média' | 'baixa' | 'fixa' }
-                }) => {
-                    if (!recomendacao) return null
-
-                    const prioridadeConfig = {
-                        alta: { bg: 'bg-red-50', border: 'border-red-300', text: 'text-red-700', badge: 'bg-red-600' },
-                        média: { bg: 'bg-amber-50', border: 'border-amber-300', text: 'text-amber-700', badge: 'bg-amber-600' },
-                        baixa: { bg: 'bg-blue-50', border: 'border-blue-300', text: 'text-blue-700', badge: 'bg-blue-600' },
-                        fixa: { bg: 'bg-slate-50', border: 'border-slate-300', text: 'text-slate-700', badge: 'bg-slate-600' }
-                    }
-                    const config = prioridadeConfig[recomendacao.prioridade]
-
-                    return (
-                        <div className={`${config.bg} border-2 ${config.border} border-dashed rounded-2xl p-5 space-y-3`}>
-                            <div className="flex items-center justify-between">
-                                <h4 className="text-sm font-extrabold text-slate-800 uppercase tracking-wide flex items-center gap-2">
-                                    <BrainCircuit className="h-5 w-5 text-indigo-600" />
-                                    Recomendação da IA
-                                </h4>
-                                <span className={`${config.badge} text-white text-[10px] font-bold uppercase px-2 py-1 rounded-full`}>
-                                    {recomendacao.prioridade}
-                                </span>
-                            </div>
-                            <div className="space-y-2">
-                                <div className="flex items-center gap-3">
-                                    <div className="bg-white p-2 rounded-lg shadow-sm">
-                                        <Users className="h-5 w-5 text-indigo-600" />
-                                    </div>
-                                    <div>
-                                        <p className="text-xs text-slate-500 font-medium">Staff Sugerido</p>
-                                        <p className="text-2xl font-black text-slate-900">{recomendacao.agentes}</p>
-                                    </div>
-                                </div>
-                                <div className={`${config.text} text-xs font-medium leading-relaxed bg-white/60 p-3 rounded-lg`}>
-                                    ℹ️ {recomendacao.motivo}
-                                </div>
-                            </div>
-                        </div>
-                    )
-                }
-
-                // 🧮 CÁLCULO DO PICO PREVISTO
+                // Calculo do pico previsto
                 const picoPrevisto = weeklyPrediction.projecao7Dias?.reduce(
                     (prev, current) => (prev.previsao > current.previsao) ? prev : current
                 ) || null
@@ -907,8 +911,8 @@ export default function DashboardAdministrativaPage() {
                     <div className="fixed inset-0 z-50 flex items-center justify-center bg-gradient-to-br from-slate-900 via-indigo-900 to-slate-900 bg-opacity-98 backdrop-blur-md p-4 animate-in fade-in duration-300">
                         <div className="bg-white w-full max-w-6xl rounded-3xl shadow-2xl overflow-hidden border-2 border-indigo-200">
 
-                            {/* 🎯 HEADER PREMIUM */}
-                            <div className="bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-600 p-6 relative overflow-hidden">
+                            {/* ðŸŽ¯ HEADER PREMIUM */}
+                            <div className="bg-gradient-to-r from-indigo-600 via-indigo-500 to-indigo-600 p-6 relative overflow-hidden">
                                 <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSAxMCAwIEwgMCAwIDAgMTAiIGZpbGw9Im5vbmUiIHN0cm9rZT0id2hpdGUiIHN0cm9rZS1vcGFjaXR5PSIwLjA1IiBzdHJva2Utd2lkdGg9IjEiLz48L3BhdHRlcm4+PC9kZWZzPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9InVybCgjZ3JpZCkiLz48L3N2Zz4=')] opacity-30"></div>
                                 <div className="relative flex items-center justify-between">
                                     <div className="flex items-center gap-4">
@@ -922,12 +926,12 @@ export default function DashboardAdministrativaPage() {
                                                 </h2>
                                                 {weeklyPrediction.mock && (
                                                     <span className="bg-amber-500 text-white text-xs font-bold uppercase px-3 py-1.5 rounded-full shadow-lg animate-pulse">
-                                                        🧪 Modo Simulação
+                                                        ðŸ§ª Modo SimulaÃ§Ã£o
                                                     </span>
                                                 )}
                                             </div>
                                             <p className="text-indigo-100 text-sm mt-1 font-medium">
-                                                Análise preditiva baseada em 90 dias de histórico • IA de Alocação Dinâmica
+                                                AnÃ¡lise preditiva baseada em 90 dias de histÃ³rico â€¢ IA de AlocaÃ§Ã£o DinÃ¢mica
                                             </p>
                                         </div>
                                     </div>
@@ -940,18 +944,18 @@ export default function DashboardAdministrativaPage() {
                                 </div>
                             </div>
 
-                            {/* 📊 CONTEÚDO PRINCIPAL - LAYOUT 2 COLUNAS */}
+                            {/* ðŸ“Š CONTEÃšDO PRINCIPAL - LAYOUT 2 COLUNAS */}
                             <div className="p-8 bg-gradient-to-br from-slate-50 to-white">
                                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
 
-                                    {/* ═══ COLUNA ESQUERDA (8/12) - GRÁFICO E MÉTRICAS ═══ */}
+                                    {/* â•â•â• COLUNA ESQUERDA (8/12) - GRÃFICO E MÃ‰TRICAS â•â•â• */}
                                     <div className="lg:col-span-8 space-y-6">
 
-                                        {/* CARDS DE MÉTRICAS */}
+                                        {/* CARDS DE MÃ‰TRICAS */}
                                         <div className="grid grid-cols-3 gap-4">
                                             <MetricCard
                                                 icon={weeklyPrediction.tendencia?.includes('crescente') ? TrendingUp : TrendingDown}
-                                                label="Tendência"
+                                                label="TendÃªncia"
                                                 value={weeklyPrediction.tendencia || "-"}
                                                 trend={weeklyPrediction.tendencia?.includes('crescente') ? 'up' : 'down'}
                                                 iconColor={weeklyPrediction.tendencia?.includes('crescente')
@@ -960,7 +964,7 @@ export default function DashboardAdministrativaPage() {
                                             />
                                             <MetricCard
                                                 icon={Users}
-                                                label="Média Histórica"
+                                                label="MÃ©dia HistÃ³rica"
                                                 value={weeklyPrediction.mediaHistorica ? `${weeklyPrediction.mediaHistorica}/dia` : "-"}
                                                 iconColor="bg-blue-100 text-blue-600"
                                             />
@@ -968,11 +972,11 @@ export default function DashboardAdministrativaPage() {
                                                 icon={Calendar}
                                                 label="Pico Previsto"
                                                 value={picoPrevisto?.dia || "-"}
-                                                iconColor="bg-purple-100 text-purple-600"
+                                                iconColor="bg-purple-100 text-indigo-600"
                                             />
                                         </div>
 
-                                        {/* GRÁFICO PRINCIPAL */}
+                                        {/* GRÃFICO PRINCIPAL */}
                                         <div className="bg-white rounded-2xl border-2 border-slate-200 shadow-lg p-6">
                                             <div className="flex items-center justify-between mb-4">
                                                 <h3 className="text-sm font-extrabold text-slate-700 uppercase tracking-wide flex items-center gap-2">
@@ -981,12 +985,12 @@ export default function DashboardAdministrativaPage() {
                                                 </h3>
                                                 <div className="flex items-center gap-2 text-xs text-slate-500">
                                                     <div className="flex items-center gap-1">
-                                                        <div className="w-3 h-3 rounded-full bg-purple-500"></div>
-                                                        <span>Previsão</span>
+                                                        <div className="w-3 h-3 rounded-full bg-indigo-500"></div>
+                                                        <span>PrevisÃ£o</span>
                                                     </div>
                                                     <div className="flex items-center gap-1">
                                                         <div className="w-3 h-0.5 bg-slate-400"></div>
-                                                        <span>Média</span>
+                                                        <span>MÃ©dia</span>
                                                     </div>
                                                 </div>
                                             </div>
@@ -1021,7 +1025,7 @@ export default function DashboardAdministrativaPage() {
                                                                 backgroundColor: '#ffffff'
                                                             }}
                                                             labelFormatter={(label, payload) => payload[0]?.payload.dataCompleta || label}
-                                                            formatter={(value: number) => [`${value} atendimentos`, 'Previsão']}
+                                                            formatter={(value: number) => [`${value} atendimentos`, 'PrevisÃ£o']}
                                                         />
                                                         {weeklyPrediction.mediaHistorica && (
                                                             <ReferenceLine
@@ -1031,7 +1035,7 @@ export default function DashboardAdministrativaPage() {
                                                                 strokeWidth={2}
                                                                 label={{
                                                                     position: 'top',
-                                                                    value: `Média: ${weeklyPrediction.mediaHistorica}`,
+                                                                    value: `MÃ©dia: ${weeklyPrediction.mediaHistorica}`,
                                                                     fill: '#64748b',
                                                                     fontSize: 11,
                                                                     fontWeight: 700
@@ -1053,47 +1057,47 @@ export default function DashboardAdministrativaPage() {
                                         </div>
                                     </div>
 
-                                    {/* ═══ COLUNA DIREITA (4/12) - INSIGHTS E AÇÕES ═══ */}
+                                    {/* â•â•â• COLUNA DIREITA (4/12) - INSIGHTS E AÃ‡Ã•ES â•â•â• */}
                                     <div className="lg:col-span-4 space-y-6">
 
-                                        {/* ANÁLISE DE PICO */}
+                                        {/* ANÃLISE DE PICO */}
                                         {picoPrevisto && (
-                                            <div className="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-2xl border-2 border-purple-200 p-5 space-y-4">
+                                            <div className="bg-gradient-to-br from-indigo-50 to-indigo-50 rounded-2xl border-2 border-indigo-200 p-5 space-y-4">
                                                 <div className="flex items-center gap-2">
-                                                    <div className="bg-purple-600 p-2 rounded-lg">
+                                                    <div className="bg-indigo-600 p-2 rounded-lg">
                                                         <AlertTriangle className="h-5 w-5 text-white" />
                                                     </div>
-                                                    <h4 className="text-sm font-extrabold text-purple-900 uppercase tracking-wide">
-                                                        Análise de Pico
+                                                    <h4 className="text-sm font-extrabold text-indigo-900 uppercase tracking-wide">
+                                                        AnÃ¡lise de Pico
                                                     </h4>
                                                 </div>
                                                 <div className="space-y-3">
                                                     <div className="bg-white rounded-xl p-4 shadow-sm">
-                                                        <p className="text-xs text-slate-500 font-medium mb-1">Dia Crítico</p>
-                                                        <p className="text-2xl font-black text-purple-900">{picoPrevisto.dia}</p>
+                                                        <p className="text-xs text-slate-500 font-medium mb-1">Dia CrÃ­tico</p>
+                                                        <p className="text-2xl font-black text-indigo-900">{picoPrevisto.dia}</p>
                                                         <p className="text-xs text-slate-500 mt-1">{picoPrevisto.dataCompleta}</p>
                                                     </div>
                                                     <div className="bg-white rounded-xl p-4 shadow-sm">
                                                         <p className="text-xs text-slate-500 font-medium mb-1">Volume Esperado</p>
                                                         <p className="text-3xl font-black text-indigo-600">{picoPrevisto.previsao}</p>
                                                         <p className="text-xs text-emerald-600 font-bold mt-1">
-                                                            +{((picoPrevisto.previsao / (weeklyPrediction.mediaHistorica || 1) - 1) * 100).toFixed(0)}% vs média
+                                                            +{((picoPrevisto.previsao / (weeklyPrediction.mediaHistorica || 1) - 1) * 100).toFixed(0)}% vs mÃ©dia
                                                         </p>
                                                     </div>
                                                 </div>
                                             </div>
                                         )}
 
-                                        {/* RECOMENDAÇÕES ACIONÁVEIS */}
+                                        {/* RECOMENDAÃ‡Ã•ES ACIONÃVEIS */}
                                         <RecommendationPanel recomendacao={weeklyPrediction.recomendacao} />
 
-                                        {/* RODAPÉ INFORMATIVO */}
+                                        {/* RODAPÃ‰ INFORMATIVO */}
                                         <div className="bg-slate-100 rounded-xl p-4 border border-slate-200">
                                             <div className="flex items-start gap-2">
                                                 <Info className="h-4 w-4 text-slate-400 shrink-0 mt-0.5" />
                                                 <p className="text-[10px] text-slate-500 leading-relaxed">
-                                                    <strong>Modelo Preditivo:</strong> Algoritmo de regressão linear baseado em padrões históricos.
-                                                    Atualização automática a cada 24h.
+                                                    <strong>Modelo Preditivo:</strong> Algoritmo de regressÃ£o linear baseado em padrÃµes histÃ³ricos.
+                                                    AtualizaÃ§Ã£o automÃ¡tica a cada 24h.
                                                 </p>
                                             </div>
                                         </div>
@@ -1105,7 +1109,7 @@ export default function DashboardAdministrativaPage() {
                 )
             })()}
 
-            {/* 2. RANKING DE GAMIFICAÇÃO (MANTIDO) */}
+            {/* 2. RANKING DE GAMIFICAÃ‡ÃƒO (MANTIDO) */}
             {showGamingModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/95 backdrop-blur-md p-4 animate-in fade-in duration-300">
                     <div className="bg-slate-900 w-full max-w-4xl rounded-2xl shadow-2xl border border-slate-700 overflow-hidden flex flex-col relative" style={{ maxHeight: '90vh' }}>
@@ -1123,7 +1127,7 @@ export default function DashboardAdministrativaPage() {
                                         <div key={jogador.nome} className="flex items-center bg-slate-800/50 p-4 rounded-xl border border-slate-700">
                                             <div className="w-8 text-center font-bold text-slate-500 mr-4">#{index + 1}</div>
                                             <div className="flex-1 flex items-center gap-3"><Avatar className="h-10 w-10 border border-slate-600"><AvatarFallback className="text-slate-800 font-bold">{jogador.avatar_initials}</AvatarFallback></Avatar><div><div className="font-bold text-white">{jogador.nome}</div><div className="text-xs text-slate-400 flex gap-3"><span>{jogador.tickets} tickets</span><span>{jogador.tma} min</span></div></div></div>
-                                            <div className="flex gap-2 mr-4">{jogador.conquistas.map((c, i) => (<span key={i} className="text-lg">{String(c).includes('Fire') ? '🔥' : String(c).includes('Plantão') ? '🍱' : '⚡'}</span>))}</div>
+                                            <div className="flex gap-1 mr-4">{jogador.conquistas.map((c, i) => (<span key={i} className="p-1 rounded-md bg-slate-700" title={String(c)}>{String(c).includes('Fire') ? 'ðŸ”¥' : String(c).includes('PlantÃ£o') ? 'ðŸ±' : 'âš¡'}</span>))}</div>
                                             <div className="text-right w-20"><div className="text-xl font-bold text-amber-400">{jogador.pontos}</div></div>
                                         </div>
                                     ))}
@@ -1134,23 +1138,23 @@ export default function DashboardAdministrativaPage() {
                 </div>
             )}
 
-            {/* 3. SALA DE GUERRA (RAIO-X) - MANTIDO COMPLETO (Código muito longo, não alterado) */}
+            {/* 3. SALA DE GUERRA (RAIO-X) - MANTIDO COMPLETO (CÃ³digo muito longo, nÃ£o alterado) */}
             {showModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/95 backdrop-blur-sm p-2 animate-in fade-in duration-200">
                     <div className="bg-slate-50 w-full h-full max-w-[1920px] rounded-xl shadow-2xl overflow-hidden flex flex-col md:flex-row border border-slate-700">
-                        {/* Sidebar + Conteúdo Principal mantidos iguais */}
-                        <div className="w-full md:w-80 bg-white border-r border-slate-200 flex flex-col h-full"><div className="p-4 border-b border-slate-100 bg-slate-50"><h2 className="font-bold text-slate-800 flex items-center gap-2"><Activity className="h-5 w-5 text-indigo-600" /> Sala de Guerra</h2><p className="text-xs text-slate-500 mt-1">Análise de Performance Individual</p></div><div className="flex-1 overflow-y-auto p-2 space-y-2 custom-scrollbar"><button onClick={() => setSelectedAgentId(null)} className={`w-full text-left p-3 rounded-lg flex items-center gap-3 transition-all ${selectedAgentId === null ? "bg-indigo-50 border border-indigo-200 shadow-sm" : "hover:bg-slate-50 border border-transparent"}`}><div className={`p-2 rounded-full ${selectedAgentId === null ? "bg-indigo-100 text-indigo-600" : "bg-slate-100 text-slate-500"}`}><Users className="h-5 w-5" /></div><div><p className={`font-bold text-sm ${selectedAgentId === null ? "text-indigo-900" : "text-slate-700"}`}>Visão Geral</p><p className="text-xs text-slate-400">Todos os Agentes</p></div></button><div className="px-2 py-1 text-xs font-bold text-slate-400 uppercase tracking-wider mt-4">Agentes Ativos</div>{agentStats.map(agent => (<button key={agent.name} onClick={() => setSelectedAgentId(agent.name)} className={`w-full text-left p-3 rounded-lg flex items-center gap-3 transition-all ${selectedAgentId === agent.name ? "bg-blue-50 border border-blue-200 shadow-sm" : "hover:bg-slate-50 border border-transparent"}`}><Avatar className="h-9 w-9 border border-slate-200"><AvatarFallback className={`${selectedAgentId === agent.name ? "bg-blue-100 text-blue-700" : "bg-slate-100 text-slate-500"} text-xs font-bold`}>{agent.initials}</AvatarFallback></Avatar><div className="flex-1 min-w-0"><div className="flex justify-between items-center"><p className={`font-bold text-sm truncate ${selectedAgentId === agent.name ? "text-blue-900" : "text-slate-700"}`}>{agent.name}</p><Badge variant="secondary" className="text-[10px] bg-slate-100">{agent.total}</Badge></div><div className="flex gap-2 items-center mt-0.5"><Progress value={agent.rate} className="h-1 w-full" /><span className="text-[10px] text-slate-400">{agent.rate.toFixed(0)}%</span></div></div></button>))}</div></div>
+                        {/* Sidebar + ConteÃºdo Principal mantidos iguais */}
+                        <div className="w-full md:w-80 bg-white border-r border-slate-200 flex flex-col h-full"><div className="p-4 border-b border-slate-100 bg-slate-50"><h2 className="font-bold text-slate-800 flex items-center gap-2"><Activity className="h-5 w-5 text-indigo-600" /> Sala de Guerra</h2><p className="text-xs text-slate-500 mt-1">AnÃ¡lise de Performance Individual</p></div><div className="flex-1 overflow-y-auto p-2 space-y-2 custom-scrollbar"><button onClick={() => setSelectedAgentId(null)} className={`w-full text-left p-3 rounded-lg flex items-center gap-3 transition-all ${selectedAgentId === null ? "bg-indigo-50 border border-indigo-200 shadow-sm" : "hover:bg-slate-50 border border-transparent"}`}><div className={`p-2 rounded-full ${selectedAgentId === null ? "bg-indigo-100 text-indigo-600" : "bg-slate-100 text-slate-500"}`}><Users className="h-5 w-5" /></div><div><p className={`font-bold text-sm ${selectedAgentId === null ? "text-indigo-900" : "text-slate-700"}`}>VisÃ£o Geral</p><p className="text-xs text-slate-400">Todos os Agentes</p></div></button><div className="px-2 py-1 text-xs font-bold text-slate-400 uppercase tracking-wider mt-4">Agentes Ativos</div>{agentStats.map(agent => (<button key={agent.name} onClick={() => setSelectedAgentId(agent.name)} className={`w-full text-left p-3 rounded-lg flex items-center gap-3 transition-all ${selectedAgentId === agent.name ? "bg-blue-50 border border-blue-200 shadow-sm" : "hover:bg-slate-50 border border-transparent"}`}><Avatar className="h-9 w-9 border border-slate-200"><AvatarFallback className={`${selectedAgentId === agent.name ? "bg-blue-100 text-blue-700" : "bg-slate-100 text-slate-500"} text-xs font-bold`}>{agent.initials}</AvatarFallback></Avatar><div className="flex-1 min-w-0"><div className="flex justify-between items-center"><p className={`font-bold text-sm truncate ${selectedAgentId === agent.name ? "text-blue-900" : "text-slate-700"}`}>{agent.name}</p><Badge variant="secondary" className="text-[10px] bg-slate-100">{agent.total}</Badge></div><div className="flex gap-2 items-center mt-0.5"><Progress value={agent.rate} className="h-1 w-full" /><span className="text-[10px] text-slate-400">{agent.rate.toFixed(0)}%</span></div></div></button>))}</div></div>
                         <div className="flex-1 flex flex-col h-full bg-slate-50/50 overflow-hidden">
-                            <div className="bg-white p-4 border-b border-slate-200 flex justify-between items-center shadow-sm z-10"><div><h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">{selectedAgentId ? (<><User className="h-5 w-5 text-blue-500" /> {selectedAgentId}</>) : (<><Target className="h-5 w-5 text-indigo-500" />Visão Global da Operação</>)}</h2><p className="text-xs text-slate-500">Filtrando dados de: {new Date(dateFilter).toLocaleDateString('pt-BR')}</p></div><button onClick={() => setShowModal(false)} className="bg-slate-100 hover:bg-red-50 hover:text-red-600 p-2 rounded-full transition-colors border border-slate-200"><X className="h-5 w-5" /></button></div>
+                            <div className="bg-white p-4 border-b border-slate-200 flex justify-between items-center shadow-sm z-10"><div><h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">{selectedAgentId ? (<><User className="h-5 w-5 text-blue-500" /> {selectedAgentId}</>) : (<><Target className="h-5 w-5 text-indigo-500" />VisÃ£o Global da OperaÃ§Ã£o</>)}</h2><p className="text-xs text-slate-500">Filtrando dados de: {new Date(dateFilter).toLocaleDateString('pt-BR')}</p></div><button onClick={() => setShowModal(false)} className="bg-slate-100 hover:bg-red-50 hover:text-red-600 p-2 rounded-full transition-colors border border-slate-200"><X className="h-5 w-5" /></button></div>
                             <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
-                                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6"><Card className="border-slate-200 bg-white shadow-sm"><CardContent className="p-4 flex items-center gap-4"><div className="p-3 bg-blue-50 rounded-lg text-blue-600"><Activity className="h-6 w-6" /></div><div><p className="text-sm text-slate-500 font-medium">Total Atendimentos</p><h3 className="text-2xl font-bold text-slate-900">{warRoomData.total}</h3></div></CardContent></Card><Card className="border-slate-200 bg-white shadow-sm"><CardContent className="p-4 flex items-center gap-4"><div className={`p-3 rounded-lg ${warRoomData.successRate >= 80 ? 'bg-emerald-50 text-emerald-600' : 'bg-orange-50 text-orange-600'}`}><CheckCircle2 className="h-6 w-6" /></div><div><p className="text-sm text-slate-500 font-medium">Taxa de Sucesso</p><h3 className="text-2xl font-bold text-slate-900">{warRoomData.successRate}%</h3></div></CardContent></Card><Card className="border-slate-200 bg-white shadow-sm"><CardContent className="p-4 flex items-center gap-4"><div className="p-3 bg-purple-50 rounded-lg text-purple-600"><Clock className="h-6 w-6" /></div><div><p className="text-sm text-slate-500 font-medium">Tempo Médio (TMA)</p><h3 className="text-2xl font-bold text-slate-900">{warRoomData.tma} min</h3></div></CardContent></Card><Card className="border-slate-200 bg-white shadow-sm"><CardContent className="p-4 flex items-center gap-4"><div className="p-3 bg-amber-50 rounded-lg text-amber-600"><TrendingUp className="h-6 w-6" /></div><div><p className="text-sm text-slate-500 font-medium">Principal Motivo</p><h3 className="text-lg font-bold text-slate-900 truncate max-w-[150px]">{warRoomData.motives[0]?.name || "-"}</h3></div></CardContent></Card></div>
+                                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6"><Card className="border-slate-200 bg-white shadow-sm"><CardContent className="p-4 flex items-center gap-4"><div className="p-3 bg-blue-50 rounded-lg text-blue-600"><Activity className="h-6 w-6" /></div><div><p className="text-sm text-slate-500 font-medium">Total Atendimentos</p><h3 className="text-2xl font-bold text-slate-900">{warRoomData.total}</h3></div></CardContent></Card><Card className="border-slate-200 bg-white shadow-sm"><CardContent className="p-4 flex items-center gap-4"><div className={`p-3 rounded-lg ${warRoomData.successRate >= 80 ? 'bg-emerald-50 text-emerald-600' : 'bg-orange-50 text-orange-600'}`}><CheckCircle2 className="h-6 w-6" /></div><div><p className="text-sm text-slate-500 font-medium">Taxa de Sucesso</p><h3 className="text-2xl font-bold text-slate-900">{warRoomData.successRate}%</h3></div></CardContent></Card><Card className="border-slate-200 bg-white shadow-sm"><CardContent className="p-4 flex items-center gap-4"><div className="p-3 bg-indigo-50 rounded-lg text-indigo-600"><Clock className="h-6 w-6" /></div><div><p className="text-sm text-slate-500 font-medium">Tempo MÃ©dio (TMA)</p><h3 className="text-2xl font-bold text-slate-900">{warRoomData.tma} min</h3></div></CardContent></Card><Card className="border-slate-200 bg-white shadow-sm"><CardContent className="p-4 flex items-center gap-4"><div className="p-3 bg-amber-50 rounded-lg text-amber-600"><TrendingUp className="h-6 w-6" /></div><div><p className="text-sm text-slate-500 font-medium">Principal Motivo</p><h3 className="text-lg font-bold text-slate-900 truncate max-w-[150px]">{warRoomData.motives[0]?.name || "-"}</h3></div></CardContent></Card></div>
                                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
                                     <Card className="lg:col-span-2 border-slate-200 shadow-sm">
                                         <CardHeader className="pb-2 flex flex-row items-center justify-between">
-                                            <CardTitle className="text-sm font-bold text-slate-500 uppercase">Correlação: Volume x Qualidade</CardTitle>
+                                            <CardTitle className="text-sm font-bold text-slate-500 uppercase">CorrelaÃ§Ã£o: Volume x Qualidade</CardTitle>
                                             <div className="flex gap-4 text-[10px] font-bold">
                                                 <div className="flex items-center gap-1"><div className="w-2 h-2 bg-blue-500 rounded-sm"></div> Volume</div>
-                                                <div className="flex items-center gap-1"><div className="w-2 h-2 bg-emerald-500 rounded-full"></div> Eficiência %</div>
+                                                <div className="flex items-center gap-1"><div className="w-2 h-2 bg-emerald-500 rounded-full"></div> EficiÃªncia %</div>
                                             </div>
                                         </CardHeader>
                                         <CardContent className="h-[250px]">
@@ -1162,7 +1166,7 @@ export default function DashboardAdministrativaPage() {
                                                     <YAxis yAxisId="right" orientation="right" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#10b981' }} unit="%" domain={[0, 100]} />
                                                     <Tooltip cursor={{ fill: '#f8fafc' }} contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
                                                     <Bar yAxisId="left" dataKey="count" name="Volume" fill={COLORS.primary} radius={[4, 4, 0, 0]} barSize={30} />
-                                                    <Line yAxisId="right" type="monotone" dataKey="efficiency" name="Eficiência" stroke={COLORS.success} strokeWidth={2} dot={{ r: 3, fill: COLORS.success }} />
+                                                    <Line yAxisId="right" type="monotone" dataKey="efficiency" name="EficiÃªncia" stroke={COLORS.success} strokeWidth={2} dot={{ r: 3, fill: COLORS.success }} />
                                                 </ComposedChart>
                                             </ResponsiveContainer>
                                         </CardContent>
@@ -1192,12 +1196,12 @@ export default function DashboardAdministrativaPage() {
                                                             <div className="flex flex-col items-end">
                                                                 <span className="text-xs font-bold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">{c.count}</span>
                                                                 {/*
-                                                                    ⚠️ CÓDIGO INATIVO: NOTA DO CLIENTE
-                                                                    Futuramente integrar com backend de reputação.
+                                                                    âš ï¸ CÃ“DIGO INATIVO: NOTA DO CLIENTE
+                                                                    Futuramente integrar com backend de reputaÃ§Ã£o.
 
                                                                     <div className="flex gap-0.5 mt-0.5">
                                                                         {[1,2,3,4,5].map(star => (
-                                                                            <span key={star} className={`text-[8px] ${star <= 4 ? 'text-amber-400' : 'text-slate-200'}`}>★</span>
+                                                                            <span key={star} className={`text-[8px] ${star <= 4 ? 'text-amber-400' : 'text-slate-200'}`}>â˜…</span>
                                                                         ))}
                                                                     </div>
                                                                 */}
@@ -1209,13 +1213,13 @@ export default function DashboardAdministrativaPage() {
                                         </Card>
                                     </div>
                                 </div>
-                                <Card className="border-slate-200 shadow-sm bg-white overflow-hidden flex flex-col"><div className="p-4 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-center gap-4"><h3 className="font-bold text-slate-800 flex items-center gap-2"><Filter className="h-4 w-4" /> Detalhamento de Atendimentos</h3><div className="relative w-full sm:w-64"><Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" /><input type="text" placeholder="Buscar cliente, telefone..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-9 pr-4 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20" /></div></div><div className="overflow-x-auto"><Table><TableHeader><TableRow className="bg-slate-50/50 hover:bg-slate-50/50"><TableHead className="font-bold text-slate-700">Data/Hora</TableHead><TableHead className="font-bold text-slate-700">Cliente</TableHead>{!selectedAgentId && <TableHead className="font-bold text-slate-700">Atendente</TableHead>}<TableHead className="font-bold text-slate-700">Motivo</TableHead><TableHead className="font-bold text-slate-700 text-center">Status</TableHead><TableHead className="font-bold text-slate-700 text-right">Duração</TableHead></TableRow></TableHeader><TableBody>{warRoomData.list.map((ticket) => (<TableRow key={ticket.id} className="hover:bg-slate-50 transition-colors"><TableCell className="font-mono text-xs text-slate-500">{viewMode === "Mensal" ? new Date(ticket.created_at).toLocaleDateString('pt-BR') : new Date(ticket.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</TableCell><TableCell><div className="flex items-center gap-2"><div className="font-medium text-slate-900 flex items-center gap-2">{ticket.nome_cliente}{ticket.origem === 'ativo' && (<span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full" title="Atendente entrou em contato"><MessageCircle className="h-3 w-3" />Ativo</span>)}</div><div className="text-xs text-slate-400">{ticket.telefone}</div></div></TableCell>{!selectedAgentId && (<TableCell className="text-xs text-slate-600">{ticket.id_atendente}</TableCell>)}<TableCell>{ticket.motivo ? (<Badge variant="secondary" className="text-[10px]">{ticket.motivo}</Badge>) : (<span className="text-xs text-slate-400 italic">-</span>)}</TableCell><TableCell className="text-center"><Badge variant={ticket.status_visual === "Sucesso" ? "default" : ticket.status_visual === "Falha" ? "destructive" : "secondary"} className="text-[10px]">{ticket.status_visual}</Badge></TableCell><TableCell className="text-right text-xs font-mono text-slate-600">{ticket.duration_minutes} min</TableCell></TableRow>))}</TableBody></Table></div>{warRoomData.totalPages > 1 && (<div className="p-4 border-t border-slate-100 flex justify-between items-center"><span className="text-xs text-slate-500">{warRoomData.fullListLength} registros totais</span><div className="flex gap-2"><button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="p-1.5 rounded border border-slate-200 disabled:opacity-30 hover:bg-slate-50"><ChevronLeft className="h-4 w-4" /></button><span className="text-xs text-slate-600 px-3 py-1.5">Página {currentPage} de {warRoomData.totalPages}</span><button onClick={() => setCurrentPage(p => Math.min(warRoomData.totalPages, p + 1))} disabled={currentPage === warRoomData.totalPages} className="p-1.5 rounded border border-slate-200 disabled:opacity-30 hover:bg-slate-50"><ChevronRight className="h-4 w-4" /></button></div></div>)}</Card>
+                                <Card className="border-slate-200 shadow-sm bg-white overflow-hidden flex flex-col"><div className="p-4 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-center gap-4"><h3 className="font-bold text-slate-800 flex items-center gap-2"><Filter className="h-4 w-4" /> Detalhamento de Atendimentos</h3><div className="relative w-full sm:w-64"><Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" /><input type="text" placeholder="Buscar cliente, telefone..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="w-full pl-9 pr-4 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20" /></div></div><div className="overflow-x-auto"><Table><TableHeader><TableRow className="bg-slate-50/50 hover:bg-slate-50/50"><TableHead className="font-bold text-slate-700">Data/Hora</TableHead><TableHead className="font-bold text-slate-700">Cliente</TableHead>{!selectedAgentId && <TableHead className="font-bold text-slate-700">Atendente</TableHead>}<TableHead className="font-bold text-slate-700">Motivo</TableHead><TableHead className="font-bold text-slate-700 text-center">Status</TableHead><TableHead className="font-bold text-slate-700 text-right">DuraÃ§Ã£o</TableHead></TableRow></TableHeader><TableBody>{warRoomData.list.map((ticket) => (<TableRow key={ticket.id} className="hover:bg-slate-50 transition-colors"><TableCell className="font-mono text-xs text-slate-500">{viewMode === "Mensal" ? new Date(ticket.created_at).toLocaleDateString('pt-BR') : new Date(ticket.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</TableCell><TableCell><div className="flex items-center gap-2"><div className="font-medium text-slate-900 flex items-center gap-2">{ticket.nome_cliente}{ticket.origem === 'ativo' && (<span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full" title="Atendente entrou em contato"><MessageCircle className="h-3 w-3" />Ativo</span>)}</div><div className="text-xs text-slate-400">{ticket.telefone}</div></div></TableCell>{!selectedAgentId && (<TableCell className="text-xs text-slate-600">{ticket.id_atendente}</TableCell>)}<TableCell>{ticket.motivo ? (<Badge variant="secondary" className="text-[10px]">{ticket.motivo}</Badge>) : (<span className="text-xs text-slate-400 italic">-</span>)}</TableCell><TableCell className="text-center"><Badge variant={ticket.status_visual === "Sucesso" ? "default" : ticket.status_visual === "Falha" ? "destructive" : "secondary"} className="text-[10px]">{ticket.status_visual}</Badge></TableCell><TableCell className="text-right text-xs font-mono text-slate-600">{ticket.duration_minutes} min</TableCell></TableRow>))}</TableBody></Table></div>{warRoomData.totalPages > 1 && (<div className="p-4 border-t border-slate-100 flex justify-between items-center"><span className="text-xs text-slate-500">{warRoomData.fullListLength} registros totais</span><div className="flex gap-2"><button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="p-1.5 rounded border border-slate-200 disabled:opacity-30 hover:bg-slate-50"><ChevronLeft className="h-4 w-4" /></button><span className="text-xs text-slate-600 px-3 py-1.5">PÃ¡gina {currentPage} de {warRoomData.totalPages}</span><button onClick={() => setCurrentPage(p => Math.min(warRoomData.totalPages, p + 1))} disabled={currentPage === warRoomData.totalPages} className="p-1.5 rounded border border-slate-200 disabled:opacity-30 hover:bg-slate-50"><ChevronRight className="h-4 w-4" /></button></div></div>)}</Card>
                             </div>
                         </div>
                     </div>
                 </div>
             )}
-            {/* 4. MAPA DE CLIENTES (IMPLEMENTAÇÃO INLINE) */}
+            {/* 4. MAPA DE CLIENTES (IMPLEMENTAÃ‡ÃƒO INLINE) */}
             {showClientModal && (() => {
                 // Componentes auxiliares
                 const StatCard = ({ title, value, icon: Icon, colorClass, subtitle }: any) => (
@@ -1262,7 +1266,7 @@ export default function DashboardAdministrativaPage() {
                                                 {viewMode}
                                             </span>
                                         </h2>
-                                        <p className="text-slate-500 text-sm font-medium">Inteligência de relacionamento e satisfação</p>
+                                        <p className="text-slate-500 text-sm font-medium">InteligÃªncia de relacionamento e satisfaÃ§Ã£o</p>
                                     </div>
                                 </div>
 
@@ -1294,21 +1298,21 @@ export default function DashboardAdministrativaPage() {
                                         value={clientMapData.stats.totalClientes}
                                         icon={Users}
                                         colorClass="bg-blue-50 text-blue-600"
-                                        subtitle="Clientes únicos identificados"
+                                        subtitle="Clientes Ãºnicos identificados"
                                     />
                                     <StatCard
-                                        title="Média de Satisfação"
+                                        title="MÃ©dia de SatisfaÃ§Ã£o"
                                         value={clientMapData.stats.mediaGeral.toFixed(2)}
                                         icon={Star}
                                         colorClass="bg-amber-50 text-amber-600"
-                                        subtitle="Baseado em avaliações reais"
+                                        subtitle="Baseado em avaliaÃ§Ãµes reais"
                                     />
                                     <StatCard
                                         title="Volume de Contatos"
                                         value={clientMapData.stats.totalContatos}
                                         icon={MessageSquare}
                                         colorClass="bg-indigo-50 text-indigo-600"
-                                        subtitle="Total de interações no período"
+                                        subtitle="Total de interaÃ§Ãµes no perÃ­odo"
                                     />
                                 </div>
 
@@ -1346,7 +1350,7 @@ export default function DashboardAdministrativaPage() {
                                                         </span>
                                                         <div className="flex items-center gap-1 text-[10px] text-slate-400">
                                                             <User className="h-3 w-3" />
-                                                            <span>Último: {c.lastAgent.split(' ')[0]}</span>
+                                                            <span>Ãšltimo: {c.lastAgent.split(' ')[0]}</span>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -1366,7 +1370,7 @@ export default function DashboardAdministrativaPage() {
                                         <div className="space-y-3">
                                             {clientMapData.topAvaliacao.length === 0 ? (
                                                 <div className="bg-white rounded-2xl p-8 text-center border border-dashed border-slate-300">
-                                                    <p className="text-sm text-slate-400 italic">Nenhuma avaliação positiva</p>
+                                                    <p className="text-sm text-slate-400 italic">Nenhuma avaliaÃ§Ã£o positiva</p>
                                                 </div>
                                             ) : clientMapData.topAvaliacao.map((c, i) => (
                                                 <div key={i} className="bg-white p-4 rounded-2xl border border-slate-200 border-l-4 border-l-emerald-500 hover:shadow-md transition-all">
@@ -1384,7 +1388,7 @@ export default function DashboardAdministrativaPage() {
                                                     </div>
                                                     <div className="mt-3 flex items-center gap-2">
                                                         <Calendar className="h-3 w-3 text-slate-300" />
-                                                        <span className="text-[10px] text-slate-400">Último contato: {new Date(c.lastDate).toLocaleDateString()}</span>
+                                                        <span className="text-[10px] text-slate-400">Ãšltimo contato: {new Date(c.lastDate).toLocaleDateString()}</span>
                                                     </div>
                                                 </div>
                                             ))}
@@ -1396,7 +1400,7 @@ export default function DashboardAdministrativaPage() {
                                         <div className="flex items-center justify-between px-1">
                                             <h3 className="font-bold text-slate-700 flex items-center gap-2">
                                                 <AlertTriangle className="h-5 w-5 text-red-500" />
-                                                Atenção Crítica
+                                                AtenÃ§Ã£o CrÃ­tica
                                             </h3>
                                             <span className="text-[10px] uppercase animate-pulse bg-red-500 text-white px-2 py-1 rounded-md font-bold">Risco</span>
                                         </div>
@@ -1407,7 +1411,7 @@ export default function DashboardAdministrativaPage() {
                                                         <CheckCircle2 className="h-8 w-8 text-emerald-500" />
                                                     </div>
                                                     <p className="text-sm font-bold text-emerald-700">Tudo sob controle!</p>
-                                                    <p className="text-[10px] text-emerald-600/70">Nenhum cliente com nota crítica no período.</p>
+                                                    <p className="text-[10px] text-emerald-600/70">Nenhum cliente com nota crÃ­tica no perÃ­odo.</p>
                                                 </div>
                                             ) : clientMapData.detratores.map((c, i) => (
                                                 <div key={i} className="bg-white p-4 rounded-2xl border border-slate-200 border-l-4 border-l-red-500 hover:shadow-md transition-all">
@@ -1438,7 +1442,7 @@ export default function DashboardAdministrativaPage() {
                             {/* FOOTER */}
                             <div className="px-8 py-4 bg-white border-t border-slate-200 flex justify-between items-center">
                                 <p className="text-[11px] text-slate-400 font-medium italic">
-                                    * Dados processados em tempo real com base no histórico de atendimentos.
+                                    * Dados processados em tempo real com base no histÃ³rico de atendimentos.
                                 </p>
                                 <button
                                     onClick={() => { setShowClientModal(false); setClientSearchTerm(""); }}
@@ -1454,3 +1458,4 @@ export default function DashboardAdministrativaPage() {
         </div>
     )
 }
+
